@@ -1,0 +1,159 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useState, useContext } from "react";
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { ENDPOINTS } from "../config";
+import { ThemeContext } from "../contexts/ThemeContext";
+
+const Myorders = () => {
+  const [orders, setOrders] = useState([]);
+  const [user, setUser] = useState(null);
+  const { darkMode } = useContext(ThemeContext);
+
+  const theme = {
+    bg: darkMode ? "#121212" : "#f7f7f7",
+    card: darkMode ? "#1f1f1f" : "#fff",
+    text: darkMode ? "#fff" : "#000",
+    subText: darkMode ? "#aaa" : "#333",
+    cancelBtn: "#ff3b30",
+    statusPending: "#888",
+    statusCompleted: "green",
+    statusCancelled: "red",
+  };
+
+  const formatCurrency = (value) => {
+    const num = Number(value);
+    return isNaN(num) ? "0.00" : num.toFixed(2);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadOrders = async () => {
+        try {
+          const stored = await AsyncStorage.getItem("user");
+          const parsed = stored ? JSON.parse(stored) : null;
+
+          if (parsed?._id) {
+            setUser(parsed);
+            const res = await fetch(`${ENDPOINTS.ORDERS}/${parsed._id}`);
+            const data = await res.json();
+
+            setOrders((data.orders || []).map((o) => ({
+              ...o,
+              total: o.total ?? 0,
+              status: o.status || "Pending",
+              items: Array.isArray(o.items) ? o.items : [],
+            })));
+          }
+        } catch (e) {
+          console.error("Load orders error:", e);
+        }
+      };
+
+      loadOrders();
+    }, [])
+  );
+
+  const cancelOrder = async (orderId) => {
+    if (!user?._id) return Alert.alert("Error", "You must be logged in.");
+
+    try {
+      const res = await fetch(`${ENDPOINTS.ORDERS}/${user._id}/${orderId}/cancel`, { method: "PATCH" });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.message);
+
+      // Refresh orders
+      const refresh = await fetch(`${ENDPOINTS.ORDERS}/${user._id}`);
+      const refreshed = await refresh.json();
+      setOrders((refreshed.orders || []).map((o) => ({
+        ...o,
+        total: o.total ?? 0,
+        status: o.status || "Pending",
+        items: Array.isArray(o.items) ? o.items : [],
+      })));
+
+      Alert.alert("Cancelled", "Order cancelled successfully");
+    } catch (e) {
+      console.error("Cancel order error:", e);
+      Alert.alert("Error", e.message || "Failed to cancel order.");
+    }
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <Text style={[styles.header, { color: theme.text }]}>My Orders</Text>
+
+      <ScrollView contentContainerStyle={{ padding: 12 }}>
+        {orders.length === 0 ? (
+          <Text style={{ textAlign: "center", marginTop: 20, color: theme.subText }}>No orders yet</Text>
+        ) : (
+          orders.map((o) => (
+            <View key={o._id} style={[styles.card, { backgroundColor: theme.card }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={{ fontWeight: "600", color: theme.text }}>
+                  Order #{o._id?.slice(-6) || "------"}
+                </Text>
+                <Text
+                  style={{
+                    color:
+                      o.status === "Cancelled"
+                        ? theme.statusCancelled
+                        : o.status === "Completed"
+                        ? theme.statusCompleted
+                        : theme.statusPending,
+                  }}
+                >
+                  {o.status}
+                </Text>
+              </View>
+
+              {o.items.length > 0 ? (
+                o.items.map((i, idx) => (
+                  <Text key={idx} style={{ color: theme.subText }}>
+                    {i.title || "Untitled"} × {i.quantity || 1}
+                  </Text>
+                ))
+              ) : (
+                <Text style={{ color: theme.subText }}>No items in this order</Text>
+              )}
+
+              <Text style={{ marginTop: 6, color: theme.text }}>Total: ₱{formatCurrency(o.total)}</Text>
+
+              {o.status !== "Cancelled" && (
+                <TouchableOpacity
+                  style={[styles.cancelBtn, { backgroundColor: theme.cancelBtn }]}
+                  onPress={() => cancelOrder(o._id)}
+                >
+                  <Text style={{ textAlign: "center", fontWeight: "bold", color: "#fff" }}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: { fontSize: 22, fontWeight: "bold", margin: 16 },
+  card: {
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cancelBtn: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+  },
+});
+
+export default Myorders;
