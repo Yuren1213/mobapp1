@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../config";
 
-const landing = () => {
+const Landing = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { food } = route.params || {};
@@ -182,4 +182,4 @@ const styles = StyleSheet.create({
   orderNowText: { fontSize: 16, fontWeight: "bold", color: "#fff" },
 });
 
-export default landing;
+export default Landing;
