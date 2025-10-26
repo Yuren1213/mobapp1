@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_URL } from "../config";
+import { API_URL } from "../config"; // Make sure this points to your ngrok URL
 
 export default function Login() {
   const navigation = useNavigation();
@@ -23,6 +23,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  // Login function
   const handleLogin = async () => {
     if (!email || !password) {
       setError("Enter email and password");
@@ -30,7 +31,7 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(`${API_URL}/auth/login`, { // ← use backticks
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -39,6 +40,7 @@ export default function Login() {
       const data = await res.json();
 
       if (res.ok && data.user && data.token) {
+        // Save user & token in AsyncStorage
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
         await AsyncStorage.setItem("token", data.token);
 
@@ -49,9 +51,11 @@ export default function Login() {
       }
     } catch (err) {
       setError("Could not connect to the server");
+      console.log(err);
     }
   };
 
+  // Continue as guest
   const continueAsGuest = async () => {
     await AsyncStorage.setItem(
       "user",
@@ -82,13 +86,12 @@ export default function Login() {
             <View style={styles.formContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="Email or Phone Number"
+                placeholder="Email"
                 placeholderTextColor="#999"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                returnKeyType="next"
               />
 
               <TextInput
@@ -98,21 +101,8 @@ export default function Login() {
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
-                returnKeyType="done"
               />
 
-              {/* Forgot Password link */}
-              <View style={styles.forgotContainer}>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate("Forgotpassword")}
-                >
-                  <Text style={styles.forgotPasswordText}>
-                    Forgot Password?
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Smooth error area (prevents layout jump) */}
               <View style={styles.errorContainer}>
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
               </View>
@@ -150,27 +140,10 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     paddingHorizontal: 30,
   },
-  container: {
-    width: "100%",
-    alignItems: "center",
-  },
-  logo: {
-    width: 200,
-    height: 200,
-    marginBottom: 10,
-    borderRadius: 100,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#ff3b3b",
-    marginTop: 5,
-    marginBottom: 25,
-  },
-  formContainer: {
-    width: "100%",
-    alignItems: "center",
-  },
+  container: { width: "100%", alignItems: "center" },
+  logo: { width: 200, height: 200, marginBottom: 10, borderRadius: 100 },
+  title: { fontSize: 26, fontWeight: "bold", color: "#ff3b3b", marginBottom: 25 },
+  formContainer: { width: "100%", alignItems: "center" },
   input: {
     width: "100%",
     backgroundColor: "#fff",
@@ -181,30 +154,9 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     marginBottom: 12,
     fontSize: 16,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
   },
-  forgotContainer: {
-    width: "100%",
-    alignItems: "flex-end",
-    marginBottom: -15,
-  },
-  forgotPasswordText: {
-    color: "#007bff",
-    fontSize: 13,
-  },
-  errorContainer: {
-    minHeight: 25, // keeps space for the error so layout doesn’t bounce
-    justifyContent: "center",
-    alignSelf: "flex-start",
-    width: "100%",
-  },
-  errorText: {
-    color: "#ff4d4d",
-    fontSize: 14,
-  },
+  errorContainer: { minHeight: 25, width: "100%" },
+  errorText: { color: "#ff4d4d", fontSize: 14 },
   loginBtn: {
     width: "100%",
     backgroundColor: "#ff3b3b",
@@ -212,36 +164,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     marginTop: 5,
-    elevation: 2,
-    shadowColor: "#ff3b3b",
-    shadowOpacity: 0.4,
-    shadowRadius: 3,
   },
-  loginText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "bold",
-  },
-  signupText: {
-    marginTop: 15,
-    fontSize: 15,
-    color: "#333",
-  },
-  signupLink: {
-    color: "#ff3b3b",
-    fontWeight: "bold",
-  },
+  loginText: { color: "#fff", fontSize: 17, fontWeight: "bold" },
+  signupText: { marginTop: 15, fontSize: 15, color: "#333" },
+  signupLink: { color: "#ff3b3b", fontWeight: "bold" },
   guestBtn: {
     marginTop: 20,
     paddingVertical: 12,
     paddingHorizontal: 40,
     borderRadius: 25,
     backgroundColor: "#f8a1c4",
-    elevation: 2,
+    alignItems: "center",
   },
-  guestText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  guestText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });

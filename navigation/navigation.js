@@ -2,30 +2,34 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { FavoritesProvider } from "../FavoritesContext";
 
+// Screens
 import Bento from "../screens/Bento";
+import Cart from "../screens/Cart";
+import Checkoutlist from "../screens/Checkoutlist";
 import Drinks from "../screens/Drinks";
 import Favorites from "../screens/Favorites";
 import Foodtrays from "../screens/Foodtrays";
+import Forgotpassword from "../screens/Forgotpassword";
+import Help from "../screens/Help";
 import Home from "../screens/Home";
 import landing from "../screens/landing";
 import Login from "../screens/log-in";
-import Register from "../screens/register";
-import Cart from "../screens/Cart"; 
-import Checkoutlist from "../screens/Checkoutlist"; 
 import Myorder from "../screens/Myorders";
+import Notifications from "../screens/Notifications";
 import Payment from "../screens/Payment";
-import Help from "../screens/Help";
+import ProductImageScreen from "../screens/ProductImageScreen";
+import Register from "../screens/register";
 import Settings from "../screens/Settings";
-import Forgotpassword from "../screens/Forgotpassword";
-
 const Stack = createNativeStackNavigator();
+
+
 
 export default function Navigation() {
   return (
     <FavoritesProvider>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Login"
+          initialRouteName="Login" // ✅ must match the Stack.Screen name
           screenOptions={{ headerShown: false }}
         >
           <Stack.Screen name="Register" component={Register} />
@@ -43,6 +47,9 @@ export default function Navigation() {
           <Stack.Screen name="Help" component={Help} />
           <Stack.Screen name="Settings" component={Settings} />
           <Stack.Screen name="Forgotpassword" component={Forgotpassword} />
+          <Stack.Screen name="ProductImage" component={ProductImageScreen} />
+          <Stack.Screen name="Notifications" component={Notifications} />
+
         </Stack.Navigator>
       </NavigationContainer>
     </FavoritesProvider>

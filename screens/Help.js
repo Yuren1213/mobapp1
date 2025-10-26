@@ -1,39 +1,62 @@
-
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Linking,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 const faqs = [
   {
     question: "How do I place an order?",
-    answer: "Browse the menu, select your favorite items, and add them to your cart. Then proceed to checkout."
+    answer:
+      "Browse the menu, select your favorite items, and add them to your cart. Then proceed to checkout.",
   },
   {
     question: "Can I modify my order?",
-    answer: "Yes! You can modify your order before confirming checkout. After confirmation, contact support immediately."
+    answer:
+      "Yes! You can modify your order before confirming checkout. After confirmation, contact support immediately.",
   },
   {
     question: "What payment methods are accepted?",
-    answer: "We accept Cash on Delivery, GCash, and Credit/Debit Cards."
+    answer: "We accept Cash on Delivery, GCash, and Credit/Debit Cards.",
   },
   {
     question: "How can I track my order?",
-    answer: "You can track your order in the 'My Orders' section of the app."
+    answer: "You can track your order in the 'My Orders' section of the app.",
   },
   {
     question: "Who do I contact for help?",
-    answer: "You can reach out to our support team via email or phone using the button below."
+    answer:
+      "You can reach out to our support team via email or phone using the button below.",
   },
 ];
 
 const Help = () => {
   const navigation = useNavigation();
+  const [loadingEmail, setLoadingEmail] = useState(false);
 
-  const contactSupport = () => {
-    Linking.openURL("mailto:support@cantinamnl.com").catch(() =>
-      Alert.alert("Error", "Could not open mail app")
-    );
+  const contactSupport = async () => {
+    setLoadingEmail(true);
+    try {
+      const supported = await Linking.canOpenURL("mailto:support@cantinamnl.com");
+      if (supported) {
+        await Linking.openURL("mailto:support@cantinamnl.com");
+      } else {
+        Alert.alert("Error", "No email app available on this device");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Could not open mail app");
+    } finally {
+      // small delay before hiding loader for smoother feel
+      setTimeout(() => setLoadingEmail(false), 800);
+    }
   };
 
   return (
@@ -44,7 +67,7 @@ const Help = () => {
           <Ionicons name="arrow-back" size={28} color="black" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Help & Support</Text>
-        <View style={{ width: 28 }} /> {/* placeholder for alignment */}
+        <View style={{ width: 28 }} />
       </View>
 
       {/* Content */}
@@ -56,8 +79,16 @@ const Help = () => {
           </View>
         ))}
 
-        <TouchableOpacity style={styles.contactButton} onPress={contactSupport}>
-          <Text style={styles.contactButtonText}>Contact Support</Text>
+        <TouchableOpacity
+          style={[styles.contactButton, loadingEmail && styles.disabledButton]}
+          onPress={contactSupport}
+          disabled={loadingEmail}
+        >
+          {loadingEmail ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.contactButtonText}>Contact Support</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -85,7 +116,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     elevation: 1,
   },
-  question: { fontSize: 15, fontWeight: "bold", marginBottom: 5, color: "#333" },
+  question: {
+    fontSize: 15,
+    fontWeight: "bold",
+    marginBottom: 5,
+    color: "#333",
+  },
   answer: { fontSize: 14, color: "#555" },
   contactButton: {
     backgroundColor: "deeppink",
@@ -94,6 +130,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 20,
   },
+  disabledButton: { opacity: 0.7 },
   contactButtonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 });
 

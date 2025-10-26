@@ -45,7 +45,7 @@ export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useState(new Animated.Value(-width))[0];
 
-  // Load user and cart
+  // ✅ Load user + cart data
   const loadUserData = async () => {
     try {
       const storedUser = await AsyncStorage.getItem("user");
@@ -56,20 +56,24 @@ export default function Home() {
       if (storedImage) setProfileImage(storedImage);
 
       const cart = storedCart ? JSON.parse(storedCart) : [];
-      setCartCount(cart.reduce((sum, item) => sum + (item.quantity || 1), 0));
+      setCartCount(cart.reduce((sum, i) => sum + (i.quantity || 1), 0));
     } catch (err) {
-      console.error(err);
+      console.error("Error loading user data:", err);
     }
   };
 
-  // Fetch products from backend
+  // ✅ Fetch all products
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`${API_URL}/products`);
+      const res = await fetch(`${API_URL}/Product/all`);
       const data = await res.json();
-      if (data.success) setProducts(data.products);
+      if (data.success) {
+        setProducts(data.products);
+      } else {
+        console.warn("Failed to load products:", data.message);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching products:", err);
     }
   };
 
@@ -85,24 +89,33 @@ export default function Home() {
     }, [])
   );
 
+  // ✅ Add to cart logic
   const addToCart = async (item) => {
-    const storedCart = await AsyncStorage.getItem("cart");
-    let cart = storedCart ? JSON.parse(storedCart) : [];
+    try {
+      const storedCart = await AsyncStorage.getItem("cart");
+      let cart = storedCart ? JSON.parse(storedCart) : [];
 
-    const existingIndex = cart.findIndex((i) => i.id === item.id || i._id === item._id);
-    if (existingIndex >= 0) cart[existingIndex].quantity += 1;
-    else cart.push({ ...item, quantity: 1 });
+      const existingIndex = cart.findIndex((i) => i._id === item._id);
+      if (existingIndex >= 0) cart[existingIndex].quantity += 1;
+      else cart.push({ ...item, quantity: 1 });
 
-    await AsyncStorage.setItem("cart", JSON.stringify(cart));
-    setCartCount(cart.reduce((sum, item) => sum + (item.quantity || 1), 0));
-    Alert.alert("Added to Cart", `${item.title || item.prod_desc} has been added!`);
+      await AsyncStorage.setItem("cart", JSON.stringify(cart));
+      setCartCount(cart.reduce((sum, i) => sum + (i.quantity || 1), 0));
+
+      Alert.alert("Added to Cart", `${item.prod_desc} has been added!`);
+    } catch (err) {
+      console.error("Error adding to cart:", err);
+      Alert.alert("Error", "Failed to add item to cart.");
+    }
   };
 
+  // ✅ Toggle favorite
   const toggleFavorite = (item) => {
-    if (isFavorite(item.id || item._id)) removeFavorite(item.id || item._id);
+    if (isFavorite(item._id)) removeFavorite(item._id);
     else addFavorite(item);
   };
 
+  // Drawer toggle
   const toggleDrawer = () => {
     if (drawerOpen) {
       Animated.timing(slideAnim, { toValue: -width, duration: 300, useNativeDriver: false }).start(() =>
@@ -140,9 +153,9 @@ export default function Home() {
           )}
           <Text style={[styles.greeting, { color: theme.text }]}>Hello {user?.name || "Guest"}!</Text>
         </TouchableOpacity>
-        <TouchableOpacity>
-          <MaterialCommunityIcons name="chef-hat" size={28} color={theme.text} />
-        </TouchableOpacity>
+       <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
+  <MaterialCommunityIcons name="chef-hat" size={28} color={theme.text} />
+</TouchableOpacity>
       </View>
 
       {/* Search */}
@@ -161,7 +174,7 @@ export default function Home() {
         {/* Best Sellers */}
         {!searchQuery && (
           <>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Cantina MNLs Best Seller</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Cantina MNL’s Best Sellers</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginLeft: 15 }}>
               {bestSellers.map((item) => (
                 <TouchableOpacity
@@ -194,7 +207,7 @@ export default function Home() {
           </>
         )}
 
-        {/* Products Grid */}
+        {/* Product Grid */}
         <View style={styles.cardContainer}>
           {filteredProducts.length > 0 ? (
             filteredProducts.map((product) => (
@@ -203,7 +216,12 @@ export default function Home() {
                 style={[styles.card, { backgroundColor: theme.card }]}
                 onPress={() => navigation.navigate("landing", { food: product })}
               >
-                <Image source={{ uri: product.image_url }} style={styles.cardImage} />
+                <Image
+                  source={{ uri: product.image_url }}
+                  style={styles.cardImage}
+                  resizeMode="cover"
+                  defaultSource={require("../assets/images/1.jpg")}
+                />
                 <Text style={[styles.cardTitle, { color: theme.text }]}>{product.prod_desc}</Text>
                 <Text style={[styles.cardPrice, { color: theme.subText }]}>₱{product.prod_unit_price}</Text>
                 <View style={styles.cardFooter}>
@@ -226,7 +244,7 @@ export default function Home() {
         </View>
       </ScrollView>
 
-      {/* Bottom Nav */}
+      {/* Bottom Navigation */}
       <View style={[styles.bottomNav, { backgroundColor: theme.navBg }]}>
         <TouchableOpacity onPress={() => navigation.navigate("Home")} style={styles.navItem}>
           <Ionicons name="home" size={25} color={theme.navText} />
@@ -284,13 +302,30 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingTop: 45, paddingBottom: 20, alignItems: "center" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 15,
+    paddingTop: 45,
+    paddingBottom: 20,
+    alignItems: "center",
+  },
   greeting: { fontSize: 16, fontWeight: "600", marginLeft: 8 },
   searchBox: { flexDirection: "row", alignItems: "center", marginHorizontal: 15, padding: 8, borderRadius: 10 },
   searchInput: { marginLeft: 8, flex: 1, fontSize: 14 },
   sectionTitle: { fontSize: 16, fontWeight: "bold", margin: 15 },
   cardContainer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-around", marginBottom: 10 },
-  card: { width: 180, borderRadius: 12, padding: 10, marginBottom: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
+  card: {
+    width: 180,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
   cardImage: { width: "100%", height: 120, borderRadius: 10, marginBottom: 6 },
   cardTitle: { fontSize: 14, fontWeight: "bold" },
   cardPrice: { fontSize: 13, marginVertical: 4 },
