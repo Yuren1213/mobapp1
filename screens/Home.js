@@ -1,9 +1,4 @@
-import {
-  FontAwesome5,
-  Ionicons,
-  MaterialCommunityIcons,
-  MaterialIcons,
-} from "@expo/vector-icons";
+import { FontAwesome5, Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useCallback, useContext, useEffect, useState } from "react";
@@ -45,7 +40,7 @@ export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useState(new Animated.Value(-width))[0];
 
-  // ✅ Load user + cart data
+  // Load user & cart from AsyncStorage
   const loadUserData = async () => {
     try {
       const storedUser = await AsyncStorage.getItem("user");
@@ -56,22 +51,21 @@ export default function Home() {
       if (storedImage) setProfileImage(storedImage);
 
       const cart = storedCart ? JSON.parse(storedCart) : [];
-      setCartCount(cart.reduce((sum, i) => sum + (i.quantity || 1), 0));
+// Count unique product IDs
+const uniqueProducts = [...new Set(cart.map(i => i._id))];
+setCartCount(uniqueProducts.length);
     } catch (err) {
       console.error("Error loading user data:", err);
     }
   };
 
-  // ✅ Fetch all products
+  // Fetch all products
   const fetchProducts = async () => {
     try {
       const res = await fetch(`${API_URL}/Product/all`);
       const data = await res.json();
-      if (data.success) {
-        setProducts(data.products);
-      } else {
-        console.warn("Failed to load products:", data.message);
-      }
+      if (data.success) setProducts(data.products);
+      else console.warn("Failed to load products:", data.message);
     } catch (err) {
       console.error("Error fetching products:", err);
     }
@@ -89,7 +83,7 @@ export default function Home() {
     }, [])
   );
 
-  // ✅ Add to cart logic
+  // Add to cart
   const addToCart = async (item) => {
     try {
       const storedCart = await AsyncStorage.getItem("cart");
@@ -100,7 +94,9 @@ export default function Home() {
       else cart.push({ ...item, quantity: 1 });
 
       await AsyncStorage.setItem("cart", JSON.stringify(cart));
-      setCartCount(cart.reduce((sum, i) => sum + (i.quantity || 1), 0));
+      // Count unique product IDs
+const uniqueProducts = [...new Set(cart.map(i => i._id))];
+setCartCount(uniqueProducts.length);
 
       Alert.alert("Added to Cart", `${item.prod_desc} has been added!`);
     } catch (err) {
@@ -109,7 +105,7 @@ export default function Home() {
     }
   };
 
-  // ✅ Toggle favorite
+  // Toggle favorite
   const toggleFavorite = (item) => {
     if (isFavorite(item._id)) removeFavorite(item._id);
     else addFavorite(item);
@@ -151,11 +147,13 @@ export default function Home() {
           ) : (
             <Ionicons name="person-circle" size={35} color={theme.text} />
           )}
-          <Text style={[styles.greeting, { color: theme.text }]}>Hello {user?.name || "Guest"}!</Text>
+        <Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 10, color: theme.text }}>
+  {user ? `Hi, ${user.Name || user.name}!` : "Hi there!"}
+</Text>
         </TouchableOpacity>
-       <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
-  <MaterialCommunityIcons name="chef-hat" size={28} color={theme.text} />
-</TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
+          <MaterialCommunityIcons name="chef-hat" size={28} color={theme.text} />
+        </TouchableOpacity>
       </View>
 
       {/* Search */}
@@ -291,7 +289,10 @@ export default function Home() {
           <Ionicons name="cog-outline" size={22} color="deeppink" />
           <Text style={[styles.drawerText, { color: theme.text }]}>Settings</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigation.navigate("Login")}>
+        <TouchableOpacity style={styles.drawerItem} onPress={async () => {
+          await AsyncStorage.clear();
+          navigation.replace("Login");
+        }}>
           <Ionicons name="log-out" size={22} color="deeppink" />
           <Text style={[styles.drawerText, { color: theme.text }]}>Logout</Text>
         </TouchableOpacity>
@@ -302,30 +303,13 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 15,
-    paddingTop: 45,
-    paddingBottom: 20,
-    alignItems: "center",
-  },
+  header: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingTop: 45, paddingBottom: 20, alignItems: "center" },
   greeting: { fontSize: 16, fontWeight: "600", marginLeft: 8 },
   searchBox: { flexDirection: "row", alignItems: "center", marginHorizontal: 15, padding: 8, borderRadius: 10 },
   searchInput: { marginLeft: 8, flex: 1, fontSize: 14 },
   sectionTitle: { fontSize: 16, fontWeight: "bold", margin: 15 },
   cardContainer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-around", marginBottom: 10 },
-  card: {
-    width: 180,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
-  },
+  card: { width: 180, borderRadius: 12, padding: 10, marginBottom: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
   cardImage: { width: "100%", height: 120, borderRadius: 10, marginBottom: 6 },
   cardTitle: { fontSize: 14, fontWeight: "bold" },
   cardPrice: { fontSize: 13, marginVertical: 4 },

@@ -15,7 +15,8 @@
         "foregroundImage": "./assets/images/1.jpg",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.mobapp"
     },
     "web": {
       "bundler": "metro",
@@ -25,7 +26,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/cantinalogo.jpg",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -38,6 +39,11 @@
     },
     "assetBundlePatterns": [
       "**/*"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0dece8db-d498-4cea-ae22-aec525bd1659"
+      }
+    }
   }
 }

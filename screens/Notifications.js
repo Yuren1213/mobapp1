@@ -2,14 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import {
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { API_URL } from "../config";
 
 export default function Notifications({ navigation }) {
   const [notifications, setNotifications] = useState([]);
@@ -18,15 +17,11 @@ export default function Notifications({ navigation }) {
   const fetchNotifications = async () => {
     try {
       setRefreshing(true);
-      const storedUser = await AsyncStorage.getItem("user");
-      if (!storedUser) return;
-
-      const { _id } = JSON.parse(storedUser);
-      const res = await fetch(`${API_URL}/notifications/${_id}`);
-      const data = await res.json();
-
-      if (data.success) {
-        setNotifications(data.notifications);
+      const stored = await AsyncStorage.getItem("notifications");
+      if (stored) {
+        setNotifications(JSON.parse(stored));
+      } else {
+        setNotifications([]);
       }
     } catch (err) {
       console.error(err);
@@ -56,7 +51,9 @@ export default function Notifications({ navigation }) {
         <Ionicons name={iconName} size={28} color={iconColor} />
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={styles.message}>{item.message}</Text>
-          <Text style={styles.time}>{new Date(item.createdAt).toLocaleString()}</Text>
+          <Text style={styles.time}>
+            {new Date(item.createdAt).toLocaleString()}
+          </Text>
         </View>
       </View>
     );
@@ -77,7 +74,10 @@ export default function Notifications({ navigation }) {
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={fetchNotifications} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={fetchNotifications}
+            />
           }
         />
       ) : (

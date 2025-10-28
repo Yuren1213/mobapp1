@@ -1,11 +1,18 @@
-// ✅ Cart.js (fixed and backend-ready)
-import React, { useState, useCallback, useContext } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import Checkbox from "expo-checkbox";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import Checkbox from "expo-checkbox";
+import { useCallback, useContext, useState } from "react";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemeContext } from "../contexts/ThemeContext";
 
 const Cart = () => {
@@ -14,7 +21,6 @@ const Cart = () => {
   const navigation = useNavigation();
   const { darkMode } = useContext(ThemeContext);
 
-  // 🔥 Load cart every time this screen is focused
   useFocusEffect(
     useCallback(() => {
       const loadCart = async () => {
@@ -32,7 +38,6 @@ const Cart = () => {
     }, [])
   );
 
-  // 🧮 Update quantity
   const updateQuantity = async (index, change) => {
     const updatedCart = [...cartItems];
     updatedCart[index].quantity += change;
@@ -41,7 +46,6 @@ const Cart = () => {
     await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
   };
 
-  // ❌ Remove item
   const removeItem = async (index) => {
     const updatedCart = [...cartItems];
     updatedCart.splice(index, 1);
@@ -53,7 +57,6 @@ const Cart = () => {
     Alert.alert("Removed", "Item removed from cart");
   };
 
-  // ✅ Toggle selection
   const toggleSelection = (index) => {
     const updatedSelection = [...selectedItems];
     updatedSelection[index] = !updatedSelection[index];
@@ -65,25 +68,33 @@ const Cart = () => {
     setSelectedItems(new Array(cartItems.length).fill(!allSelected));
   };
 
-  // 💰 Compute subtotal and shipping fee
   const subtotal = cartItems.reduce((sum, item, idx) => {
     if (selectedItems[idx])
-      return sum + (item.prod_unit_price || item.price || 0) * item.quantity;
+      return (
+        sum +
+        (item.prod_unit_price || item.price || 0) * (item.quantity || 1)
+      );
     return sum;
   }, 0);
 
   const shippingFee = subtotal > 0 ? 50 : 0;
+  const anySelected = selectedItems.some((s) => s);
 
-  // 🧾 Checkout
-  const handleCheckout = () => {
-    if (cartItems.length === 0) {
-      Alert.alert("Empty Cart", "Please add items before checking out.");
+  const handleCheckout = async () => {
+    if (!anySelected) return;
+
+    const storedUser = await AsyncStorage.getItem("user");
+    if (!storedUser || JSON.parse(storedUser)._id === null) {
+      Alert.alert("You must be logged in", "Please log in to place an order.");
       return;
     }
 
     const itemsToBuy = cartItems.filter((_, index) => selectedItems[index]);
     if (itemsToBuy.length === 0) {
-      Alert.alert("No Items Selected", "Please select at least one item to checkout.");
+      Alert.alert(
+        "No Items Selected",
+        "Please select at least one item to checkout."
+      );
       return;
     }
 
@@ -102,34 +113,47 @@ const Cart = () => {
     subText: darkMode ? "#aaa" : "#666",
     card: darkMode ? "#1f1f1f" : "#fff",
     border: darkMode ? "#333" : "#ddd",
-    checkbox: darkMode ? "#fff" : "#000",
-    checkoutBtn: darkMode ? "#ff007f" : "#ff007f",
+    activeCheckbox: darkMode ? "#ff007f" : "#000",
+    checkoutBtn: "#ff007f",
+    disabledBtn: darkMode ? "#555" : "#ccc",
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* Header */}
       <SafeAreaView
         edges={["top"]}
-        style={[styles.header, { backgroundColor: theme.headerBg, borderColor: theme.border }]}
+        style={[
+          styles.header,
+          { backgroundColor: theme.headerBg, borderColor: theme.border },
+        ]}
       >
-        <TouchableOpacity onPress={() => navigation.navigate("Home")} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Home")}
+          style={styles.backBtn}
+        >
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text }]}>My Cart</Text>
       </SafeAreaView>
 
-      {/* Cart Items */}
       <ScrollView contentContainerStyle={{ paddingBottom: 150 }}>
         {cartItems.length === 0 ? (
-          <Text style={[styles.emptyText, { color: theme.text }]}>Your cart is empty</Text>
+          <Text style={[styles.emptyText, { color: theme.text }]}>
+            Your cart is empty
+          </Text>
         ) : (
           cartItems.map((item, index) => (
             <View
               key={index}
-              style={[styles.item, { backgroundColor: theme.card, borderColor: theme.border }]}
+              style={[
+                styles.item,
+                { backgroundColor: theme.card, borderColor: theme.border },
+              ]}
             >
-              <TouchableOpacity style={styles.closeBtn} onPress={() => removeItem(index)}>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => removeItem(index)}
+              >
                 <Text style={[styles.closeText, { color: theme.text }]}>×</Text>
               </TouchableOpacity>
 
@@ -137,10 +161,11 @@ const Cart = () => {
                 value={selectedItems[index]}
                 onValueChange={() => toggleSelection(index)}
                 style={styles.checkbox}
-                color={selectedItems[index] ? theme.checkbox : undefined}
+                color={
+                  selectedItems[index] ? theme.activeCheckbox : undefined
+                }
               />
 
-              {/* ✅ Product Image */}
               <Image
                 source={{
                   uri:
@@ -151,7 +176,6 @@ const Cart = () => {
                 style={styles.image}
               />
 
-              {/* ✅ Product Name & Price */}
               <View style={styles.info}>
                 <Text style={[styles.title, { color: theme.text }]}>
                   {item.prod_desc || item.title || "Unnamed Item"}
@@ -161,12 +185,16 @@ const Cart = () => {
                 </Text>
               </View>
 
-              {/* Quantity Controls */}
               <View style={styles.quantityContainer}>
-                <TouchableOpacity style={styles.qtyButton} onPress={() => updateQuantity(index, -1)}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => updateQuantity(index, -1)}
+                >
                   <Text style={[styles.qtyText, { color: theme.text }]}>-</Text>
                 </TouchableOpacity>
-                <Text style={[styles.qtyNumber, { color: theme.text }]}>{item.quantity}</Text>
+                <Text style={[styles.qtyNumber, { color: theme.text }]}>
+                  {item.quantity}
+                </Text>
                 <TouchableOpacity
                   style={[styles.qtyButton, styles.qtyButtonPlus]}
                   onPress={() => updateQuantity(index, 1)}
@@ -179,40 +207,51 @@ const Cart = () => {
         )}
       </ScrollView>
 
-      {/* Footer */}
-      <View style={[styles.footer, { borderColor: theme.border, backgroundColor: theme.card }]}>
+      <View
+        style={[
+          styles.footer,
+          { borderColor: theme.border, backgroundColor: theme.card },
+        ]}
+      >
         <View style={styles.selectAllContainer}>
           <Checkbox
             value={selectedItems.length > 0 && selectedItems.every((s) => s)}
             onValueChange={toggleSelectAll}
-            color={theme.checkbox}
+            color={theme.activeCheckbox}
           />
           <Text style={[{ color: theme.text, marginLeft: 6 }]}>All</Text>
         </View>
 
         <View style={styles.summaryContainer}>
           <Text style={[styles.subtotalText, { color: theme.text }]}>
-            Subtotal: <Text style={{ color: "red", fontWeight: "bold" }}>₱{subtotal.toFixed(2)}</Text>
+            Subtotal:{" "}
+            <Text style={{ color: "red", fontWeight: "bold" }}>
+              ₱{subtotal.toFixed(2)}
+            </Text>
           </Text>
           <Text style={[styles.shippingText, { color: theme.subText }]}>
-            Shipping Fee: <Text style={{ color: "red" }}>₱{shippingFee.toFixed(2)}</Text>
+            Shipping Fee:{" "}
+            <Text style={{ color: "red" }}>₱{shippingFee.toFixed(2)}</Text>
           </Text>
         </View>
 
         <TouchableOpacity
-          style={[styles.checkoutBtn, { backgroundColor: theme.checkoutBtn }]}
+          style={[
+            styles.checkoutBtn,
+            {
+              backgroundColor: anySelected
+                ? theme.checkoutBtn
+                : theme.disabledBtn,
+            },
+          ]}
           onPress={handleCheckout}
+          disabled={!anySelected}
         >
           <Text style={styles.checkoutText}>
             Check Out ({selectedItems.filter((s) => s).length})
           </Text>
         </TouchableOpacity>
       </View>
-
-      <SafeAreaView
-        edges={["bottom"]}
-        style={{ backgroundColor: theme.headerBg, height: 20, marginTop: -5 }}
-      />
     </View>
   );
 };
@@ -227,13 +266,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   backBtn: { flexDirection: "row", alignItems: "center" },
-  headerTitle: { flex: 1, textAlign: "center", fontSize: 18, fontWeight: "bold", marginRight: 40 },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginRight: 40,
+  },
   emptyText: { fontSize: 16, textAlign: "center", marginTop: 20 },
   item: {
     position: "relative",
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 10,
+    marginHorizontal: 20,
     marginVertical: 5,
     borderRadius: 10,
     padding: 20,
@@ -243,14 +288,17 @@ const styles = StyleSheet.create({
   info: { flex: 1, marginLeft: 10 },
   title: { fontSize: 16, fontWeight: "bold" },
   price: { fontSize: 14, marginTop: 5 },
-  quantityContainer: { flexDirection: "row", alignItems: "center", marginHorizontal: 10 },
+  quantityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 10,
+  },
   qtyButton: {
     borderWidth: 1,
     borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  qtyButtonPlus: {},
   qtyText: { fontSize: 16 },
   qtyNumber: { fontSize: 16, marginHorizontal: 6 },
   closeBtn: {

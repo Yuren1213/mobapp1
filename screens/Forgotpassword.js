@@ -4,171 +4,130 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   StyleSheet,
-  Image,
-  KeyboardAvoidingView,
-  ScrollView,
-  Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { API_URL } from "../config";
+import axios from "axios";
+import { ENDPOINTS } from "../config";
 
-export default function ForgotPassword() {
-  const navigation = useNavigation();
+export default function Forgotpassword({ navigation }) {
   const [email, setEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleResetRequest = async () => {
-    if (!email) {
-      Alert.alert("⚠️ Error", "Please enter your email address.");
+  const handleResetpassword = async () => {
+    if (!email || !newPassword) {
+      Alert.alert("Error", "Please enter both email and new password");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/auth/request-reset`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+      const response = await axios.post(`${ENDPOINTS.AUTH}/reset-password`, {
+        email,
+        newPassword,
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        Alert.alert("Password reset email has been sent.");
-        navigation.goBack();
-      } else {
-        Alert.alert("Failed", data.message || "Unable to send reset email.");
-      }
+      Alert.alert("Success", response.data.message);
+      setEmail("");
+      setNewPassword("");
+      navigation.navigate("Login");
     } catch (error) {
-      Alert.alert("Error", "Failed to connect to server.");
+      console.error("Password reset error:", error);
+      if (error.response) {
+        Alert.alert("Error", error.response.data.message || "Something went wrong");
+      } else {
+        Alert.alert("Error", "Unable to connect to server");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#fff4f4" }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.container}>
+      <Text style={styles.title}>Reset Password 🔐</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Enter your email"
+        placeholderTextColor="#888"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Enter new password"
+        placeholderTextColor="#888"
+        secureTextEntry
+        value={newPassword}
+        onChangeText={setNewPassword}
+      />
+
+      <TouchableOpacity
+        style={[styles.button, loading && { opacity: 0.7 }]}
+        onPress={handleResetpassword}
+        disabled={loading}
       >
-        <View style={styles.container}>
-          <Image
-            source={require("../assets/images/cantinalogo.jpg")}
-            style={styles.logo}
-          />
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Reset Password</Text>
+        )}
+      </TouchableOpacity>
 
-          <Text style={styles.title}>Forgot Password?</Text>
-          <Text style={styles.subtitle}>
-            Don’t worry! Enter your email and we’ll send a reset link.
-          </Text>
-
-          <View style={styles.formContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your registered email"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              returnKeyType="done"
-            />
-
-            <TouchableOpacity
-              style={[styles.resetBtn, loading && { opacity: 0.7 }]}
-              onPress={handleResetRequest}
-              disabled={loading}
-            >
-              <Text style={styles.resetText}>
-                {loading ? "Sending..." : "Send Reset Link"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-              <Text style={styles.backText}>← Back to Login</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+        <Text style={styles.link}>Back to Login</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
   container: {
-    width: "100%",
+    flex: 1,
+    backgroundColor: "#fff",
     alignItems: "center",
-  },
-  logo: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    marginBottom: 10,
+    justifyContent: "center",
+    padding: 24,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "bold",
-    color: "#ff3b3b",
-    marginTop: 5,
-  },
-  subtitle: {
-    color: "#666",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 25,
-    paddingHorizontal: 10,
-  },
-  formContainer: {
-    width: "100%",
+    color: "#333",
+    marginBottom: 24,
   },
   input: {
     width: "100%",
-    backgroundColor: "#fff",
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 12,
+    height: 50,
+    borderColor: "#ccc",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderRadius: 10,
     marginBottom: 15,
+    paddingHorizontal: 15,
     fontSize: 16,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
   },
-  resetBtn: {
+  button: {
     width: "100%",
-    backgroundColor: "#ff3b3b",
-    paddingVertical: 15,
-    borderRadius: 12,
+    height: 50,
+    backgroundColor: "#4CAF50",
+    borderRadius: 10,
     alignItems: "center",
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: "#ff3b3b",
-    shadowOpacity: 0.4,
-    shadowRadius: 3,
+    justifyContent: "center",
+    marginBottom: 12,
   },
-  resetText: {
+  buttonText: {
     color: "#fff",
-    fontSize: 17,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "600",
   },
-  backText: {
-    textAlign: "center",
-    color: "#007bff",
-    fontSize: 15,
-    fontWeight: "500",
+  link: {
+    color: "#007BFF",
+    marginTop: 10,
+    fontSize: 16,
   },
 });

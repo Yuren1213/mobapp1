@@ -1,241 +1,345 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState, useContext } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
   TouchableOpacity,
-  View,
+  ScrollView,
   ActivityIndicator,
+  Alert,
+  StyleSheet,
+  RefreshControl,
+  useColorScheme,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ENDPOINTS } from "../config";
-import { ThemeContext } from "../contexts/ThemeContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// For Expo
-import { LinearGradient } from "expo-linear-gradient";
-import ShimmerPlaceHolder from "react-native-shimmer-placeholder";
+const ENDPOINTS = {
+  ORDERS: "https://untooled-rostrally-trent.ngrok-free.dev/api/orders",
+};
 
-const Myorders = () => {
+export default function MyOrdersScreen() {
   const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expanded, setExpanded] = useState(null);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [cancellingOrderId, setCancellingOrderId] = useState(null);
-  const { darkMode } = useContext(ThemeContext);
 
-  const theme = {
-    bg: darkMode ? "#121212" : "#f7f7f7",
-    card: darkMode ? "#1f1f1f" : "#fff",
-    text: darkMode ? "#fff" : "#000",
-    subText: darkMode ? "#aaa" : "#333",
-    cancelBtn: "#ff3b30",
-    statusPending: "#888",
-    statusCompleted: "green",
-    statusCancelled: "red",
-  };
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const theme = isDark ? darkTheme : lightTheme;
 
-  const formatCurrency = (value) => {
-    const num = Number(value);
-    return isNaN(num) ? "0.00" : num.toFixed(2);
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      const loadOrders = async () => {
-        try {
-          setLoading(true);
-          const stored = await AsyncStorage.getItem("user");
-          const parsed = stored ? JSON.parse(stored) : null;
-
-          if (parsed?._id) {
-            setUser(parsed);
-            const res = await fetch(`${ENDPOINTS.ORDERS}/${parsed._id}`);
-            const data = await res.json();
-
-            setOrders(
-              (data.orders || []).map((o) => ({
-                ...o,
-                total: o.total ?? 0,
-                status: o.status || "Pending",
-                items: Array.isArray(o.items) ? o.items : [],
-              }))
-            );
-          }
-        } catch (e) {
-          console.error("Load orders error:", e);
-          Alert.alert("Error", "Failed to load orders.");
-        } finally {
-          setLoading(false);
+  useEffect(() => {
+    const loadUserAndOrders = async () => {
+      try {
+        const userData = await AsyncStorage.getItem("user");
+        if (!userData) {
+          Alert.alert("Error", "No user found. Please log in again.");
+          return;
         }
-      };
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+        fetchOrders(parsedUser.id);
+      } catch (err) {
+        console.error("Error loading user:", err);
+      }
+    };
+    loadUserAndOrders();
+  }, []);
 
-      loadOrders();
-    }, [])
-  );
-
-  const cancelOrder = async (orderId) => {
-    if (!user?._id) return Alert.alert("Error", "You must be logged in.");
-    setCancellingOrderId(orderId); // start loading for this order
-
+  const fetchOrders = async (userId) => {
+    if (!userId) return;
+    setLoading(true);
     try {
-      const res = await fetch(
-        `${ENDPOINTS.ORDERS}/${user._id}/${orderId}/cancel`,
-        { method: "PATCH" }
-      );
-      const data = await res.json();
-
-      if (!data.success) throw new Error(data.message);
-
-      const refresh = await fetch(`${ENDPOINTS.ORDERS}/${user._id}`);
-      const refreshed = await refresh.json();
-      setOrders(
-        (refreshed.orders || []).map((o) => ({
-          ...o,
-          total: o.total ?? 0,
-          status: o.status || "Pending",
-          items: Array.isArray(o.items) ? o.items : [],
-        }))
-      );
-
-      Alert.alert("Cancelled", "Order cancelled successfully");
-    } catch (e) {
-      console.error("Cancel order error:", e);
-      Alert.alert("Error", e.message || "Failed to cancel order.");
+      const response = await fetch(`${ENDPOINTS.ORDERS}/user/${userId}`);
+      const rawText = await response.text();
+      const data = JSON.parse(rawText);
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("❌ Fetch error:", error);
+      Alert.alert("Error", "Failed to fetch orders. Please try again.");
     } finally {
-      setCancellingOrderId(null); // stop loading
+      setLoading(false);
     }
   };
 
-  const SkeletonLoader = ({ count = 10 }) => (
-    <View style={{ paddingHorizontal: 16 }}>
-      {Array.from({ length: count }).map((_, idx) => (
-        <View
-          key={idx}
-          style={[styles.card, { backgroundColor: theme.card, marginBottom: 12 }]}
-        >
-          <ShimmerPlaceHolder
-            LinearGradient={LinearGradient}
-            style={{ width: "40%", height: 16, borderRadius: 4, marginBottom: 8 }}
-            shimmerColors={darkMode ? ["#333", "#444", "#333"] : undefined}
-          />
-          <ShimmerPlaceHolder
-            LinearGradient={LinearGradient}
-            style={{ width: "20%", height: 16, borderRadius: 4, marginBottom: 12 }}
-            shimmerColors={darkMode ? ["#333", "#444", "#333"] : undefined}
-          />
-          {Array.from({ length: 3 }).map((__, itemIdx) => (
-            <ShimmerPlaceHolder
-              key={itemIdx}
-              LinearGradient={LinearGradient}
-              style={{ width: `${40 + itemIdx * 15}%`, height: 12, borderRadius: 4, marginBottom: 6 }}
-              shimmerColors={darkMode ? ["#333", "#444", "#333"] : undefined}
-            />
-          ))}
-          <ShimmerPlaceHolder
-            LinearGradient={LinearGradient}
-            style={{ width: "30%", height: 16, borderRadius: 4, marginTop: 6, marginBottom: 6 }}
-            shimmerColors={darkMode ? ["#333", "#444", "#333"] : undefined}
-          />
-          <ShimmerPlaceHolder
-            LinearGradient={LinearGradient}
-            style={{ width: "25%", height: 30, borderRadius: 6, marginTop: 6 }}
-            shimmerColors={darkMode ? ["#333", "#444", "#333"] : undefined}
-          />
-        </View>
-      ))}
-    </View>
-  );
+  const onRefresh = async () => {
+    if (!user) return;
+    setRefreshing(true);
+    await fetchOrders(user.id);
+    setRefreshing(false);
+  };
+
+  // ✅ Cancel order and push notification locally
+  const cancelOrder = async (orderId) => {
+    if (!user) return;
+    Alert.alert("Cancel Order", "Are you sure you want to cancel this order?", [
+      { text: "No" },
+      {
+        text: "Yes",
+        onPress: async () => {
+          try {
+            const res = await fetch(
+              `${ENDPOINTS.ORDERS}/${user.id}/${orderId}/cancel`,
+              { method: "PATCH" }
+            );
+            const rawText = await res.text();
+            const data = JSON.parse(rawText);
+
+            if (data.success) {
+              Alert.alert("Success", "Order cancelled successfully!");
+              fetchOrders(user.id);
+
+              // ✅ Save a notification locally
+              const newNotif = {
+                _id: Date.now().toString(),
+                type: "cancelled",
+                message: `Your order #${orderId} was cancelled.`,
+                createdAt: new Date().toISOString(),
+              };
+
+              const existing = await AsyncStorage.getItem("notifications");
+              const parsed = existing ? JSON.parse(existing) : [];
+              parsed.unshift(newNotif); // Add new notif to the top
+              await AsyncStorage.setItem(
+                "notifications",
+                JSON.stringify(parsed)
+              );
+            } else {
+              Alert.alert("Error", data.message || "Failed to cancel order.");
+            }
+          } catch (err) {
+            console.error("Cancel order error:", err);
+            Alert.alert("Error", "Network error: " + err.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View
+        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
+      >
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+          Loading orders...
+        </Text>
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <Text style={[styles.header, { color: theme.text }]}>My Orders</Text>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 120 }}
+        style={[styles.container, { backgroundColor: theme.background }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.primary]}
+            tintColor={theme.primary}
+          />
+        }
+      >
+        <Text style={[styles.header, { color: theme.textPrimary }]}>
+          My Orders
+        </Text>
 
-      {loading ? (
-        <SkeletonLoader count={10} />
-      ) : (
-        <ScrollView contentContainerStyle={{ padding: 12 }}>
-          {orders.length === 0 ? (
-            <Text style={{ textAlign: "center", marginTop: 20, color: theme.subText }}>
-              No orders yet
-            </Text>
-          ) : (
-            orders.map((o) => (
-              <View key={o._id} style={[styles.card, { backgroundColor: theme.card }]}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontWeight: "600", color: theme.text }}>
-                    Order #{o._id?.slice(-6) || "------"}
+        {orders.length === 0 ? (
+          <Text style={[styles.noOrdersText, { color: theme.textSecondary }]}>
+            You have no orders yet.
+          </Text>
+        ) : (
+          orders.map((order) => {
+            const isExpanded = expanded === order.id || expanded === order._id;
+            const orderId = order._id || order.id;
+
+            let statusStyle = theme.statusDefault;
+            if (order.status === "Pending") statusStyle = theme.statusPending;
+            if (order.status === "Cancelled")
+              statusStyle = theme.statusCancelled;
+            if (order.status === "Completed")
+              statusStyle = theme.statusCompleted;
+
+            return (
+              <View
+                key={orderId}
+                style={[
+                  styles.orderCard,
+                  {
+                    backgroundColor: theme.cardBackground,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.orderHeader}>
+                  <Text style={[styles.orderId, { color: theme.textPrimary }]}>
+                    #{orderId}
                   </Text>
-                  <Text
-                    style={{
-                      color:
-                        o.status === "Cancelled"
-                          ? theme.statusCancelled
-                          : o.status === "Completed"
-                          ? theme.statusCompleted
-                          : theme.statusPending,
-                    }}
-                  >
-                    {o.status}
+                  <Text style={[styles.statusBadge, statusStyle]}>
+                    {order.status}
                   </Text>
                 </View>
 
-                {o.items.length > 0 ? (
-                  o.items.map((i, idx) => (
-                    <Text key={idx} style={{ color: theme.subText }}>
-                      {i.title || "Untitled"} × {i.quantity || 1}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={{ color: theme.subText }}>No items in this order</Text>
+                <View style={styles.orderSummary}>
+                  <Text style={[styles.orderTotal, { color: theme.textPrimary }]}>
+                    Total: ₱{order.total?.toFixed(2)}
+                  </Text>
+                  <Text
+                    style={[styles.orderDate, { color: theme.textSecondary }]}
+                  >
+                    Date:{" "}
+                    {order.createdAt
+                      ? new Date(order.createdAt).toLocaleString()
+                      : "N/A"}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setExpanded(isExpanded ? null : orderId)}
+                  style={[
+                    styles.expandButton,
+                    { backgroundColor: theme.expandBackground },
+                  ]}
+                >
+                  <Text
+                    style={[styles.expandButtonText, { color: theme.primary }]}
+                  >
+                    {isExpanded ? "Hide Items ▲" : "View Items ▼"}
+                  </Text>
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View
+                    style={[
+                      styles.itemsContainer,
+                      {
+                        backgroundColor: theme.itemsBackground,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    {order.items?.map((item, idx) => (
+                      <View
+                        key={idx}
+                        style={[
+                          styles.itemRow,
+                          idx === order.items.length - 1 && {
+                            borderBottomWidth: 0,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.itemTitle, { color: theme.textPrimary }]}
+                        >
+                          {item.title}
+                        </Text>
+                        <Text
+                          style={[styles.itemPrice, { color: theme.textPrimary }]}
+                        >
+                          ₱{item.price} × {item.quantity}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 )}
 
-                <Text style={{ marginTop: 6, color: theme.text }}>
-                  Total: ₱{formatCurrency(o.total)}
-                </Text>
-
-                {o.status !== "Cancelled" && (
+                {order.status === "Pending" && (
                   <TouchableOpacity
-                    style={[styles.cancelBtn, { backgroundColor: theme.cancelBtn }]}
-                    onPress={() => cancelOrder(o._id)}
-                    disabled={cancellingOrderId === o._id} // disable button while cancelling
+                    onPress={() => cancelOrder(orderId)}
+                    style={[
+                      styles.cancelButton,
+                      {
+                        backgroundColor: theme.cancelButton,
+                        marginBottom: 8,
+                      },
+                    ]}
                   >
-                    {cancellingOrderId === o._id ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={{ textAlign: "center", fontWeight: "bold", color: "#fff" }}>
-                        Cancel
-                      </Text>
-                    )}
+                    <Text
+                      style={[
+                        styles.cancelButtonText,
+                        { color: theme.cancelButtonText },
+                      ]}
+                    >
+                      Cancel Order
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
-            ))
-          )}
-        </ScrollView>
-      )}
-    </SafeAreaView>
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
   );
+}
+
+// Themes
+const lightTheme = {
+  background: "#F9FAFB",
+  cardBackground: "#FFFFFF",
+  textPrimary: "#111827",
+  textSecondary: "#6B7280",
+  border: "#E5E7EB",
+  primary: "#2563EB",
+  expandBackground: "#DBEAFE",
+  itemsBackground: "#F3F4F6",
+  cancelButton: "#DC2626",
+  cancelButtonText: "#FFFFFF",
+  statusPending: { backgroundColor: "#FEF3C7", color: "#B45309" },
+  statusCancelled: { backgroundColor: "#FEE2E2", color: "#B91C1C" },
+  statusCompleted: { backgroundColor: "#D1FAE5", color: "#047857" },
+  statusDefault: { backgroundColor: "#E5E7EB", color: "#374151" },
 };
 
+const darkTheme = {
+  background: "#1F2937",
+  cardBackground: "#374151",
+  textPrimary: "#F9FAFB",
+  textSecondary: "#D1D5DB",
+  border: "#4B5563",
+  primary: "#60A5FA",
+  expandBackground: "#2563EB33",
+  itemsBackground: "#4B5563",
+  cancelButton: "#DC2626",
+  cancelButtonText: "#F9FAFB",
+  statusPending: { backgroundColor: "#78350F", color: "#FBBF24" },
+  statusCancelled: { backgroundColor: "#7F1D1D", color: "#FECACA" },
+  statusCompleted: { backgroundColor: "#064E3B", color: "#BBF7D0" },
+  statusDefault: { backgroundColor: "#374151", color: "#D1D5DB" },
+};
+
+// Styles
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { fontSize: 22, fontWeight: "bold", margin: 16 },
-  card: {
-    borderRadius: 12,
+  container: { flex: 1, padding: 16 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 8, fontSize: 16 },
+  header: { fontSize: 28, fontWeight: "700", marginBottom: 16 },
+  noOrdersText: { fontSize: 16, textAlign: "center", marginTop: 40 },
+  orderCard: {
+    borderRadius: 20,
     padding: 16,
-    marginVertical: 6,
+    marginBottom: 16,
+    borderWidth: 1,
     shadowColor: "#000",
     shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 2,
   },
-  cancelBtn: {
-    marginTop: 8,
-    padding: 8,
-    borderRadius: 8,
-  },
+  orderHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  orderId: { fontWeight: "700", fontSize: 16 },
+  statusBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, fontSize: 12, fontWeight: "600" },
+  orderSummary: { marginBottom: 8 },
+  orderTotal: { fontSize: 14, fontWeight: "600" },
+  orderDate: { fontSize: 12 },
+  expandButton: { marginTop: 4, paddingVertical: 8, borderRadius: 12 },
+  expandButtonText: { textAlign: "center", fontWeight: "600", fontSize: 14 },
+  itemsContainer: { marginTop: 8, borderRadius: 12, padding: 8, borderWidth: 1 },
+  itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1 },
+  itemTitle: { fontSize: 14 },
+  itemPrice: { fontSize: 14 },
+  cancelButton: { paddingVertical: 12, borderRadius: 16, marginTop: 12 },
+  cancelButtonText: { textAlign: "center", fontWeight: "600", fontSize: 16 },
 });
-
-export default Myorders;
