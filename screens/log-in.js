@@ -7,11 +7,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  KeyboardAvoidingView,
   ScrollView,
   Platform,
-  TouchableWithoutFeedback,
-  Keyboard,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -42,156 +40,207 @@ export default function Login() {
 
       const data = await response.json();
 
-     if (response.ok && data.user) {
-  await AsyncStorage.setItem("user", JSON.stringify(data.user));
-  Alert.alert("Success", "Login successful!");
-  navigation.replace("Home");
-} else {
-  setError(data.message || "Invalid credentials");
-}
+      if (response.ok && data.user) {
+        await AsyncStorage.setItem("user", JSON.stringify(data.user));
+        Alert.alert("Welcome!", "Login successful 🍽️");
+        navigation.replace("Home");
+      } else {
+        setError(data.message || "Invalid credentials");
+      }
     } catch (err) {
       console.error("Login Error:", err);
-      setError("Failed to connect to server. Check your API URL and network.");
+      setError("Unable to connect. Please check your connection.");
     } finally {
       setLoading(false);
     }
   };
 
   const continueAsGuest = () => {
-  navigation.replace("Home");
-
+    navigation.replace("Home");
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#fff4f4" }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-          <View style={styles.container}>
-            <Image
-              source={require("../assets/images/cantinalogo.jpg")}
-              style={styles.logo}
+    <View style={styles.background}>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.card}>
+          <Image
+            source={require("../assets/images/cantinalogo.jpg")}
+            style={styles.logo}
+          />
+
+          <Text style={styles.title}>Welcome Back 👋</Text>
+          <Text style={styles.subtitle}>Log in to continue your cravings</Text>
+
+          <View style={styles.form}>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#aaa"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
 
-            <Text style={styles.title}>Welcome Back 👋</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#aaa"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
 
-            <View style={styles.formContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Email or Phone Number"
-                placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#999"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
+            <TouchableOpacity
+              style={[styles.button, loading && { opacity: 0.7 }]}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Login</Text>
+              )}
+            </TouchableOpacity>
 
-              <View style={styles.forgotContainer}>
-                <TouchableOpacity onPress={() => navigation.navigate("Forgotpassword")}>
-                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-                </TouchableOpacity>
-              </View>
+            <TouchableOpacity
+              style={styles.forgotContainer}
+              onPress={() => navigation.navigate("Forgotpassword")}
+            >
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-              <TouchableOpacity
-                style={[styles.loginBtn, loading && { opacity: 0.7 }]}
-                onPress={handleLogin}
-                disabled={loading}
+            <Text style={styles.signupText}>
+              Don’t have an account?{" "}
+              <Text
+                style={styles.signupLink}
+                onPress={() => navigation.navigate("Register")}
               >
-                <Text style={styles.loginText}>
-                  {loading ? "Logging in..." : "Log In"}
-                </Text>
-              </TouchableOpacity>
-
-              <Text style={styles.signupText}>
-                Don’t have an account?{" "}
-                <Text style={styles.signupLink} onPress={() => navigation.navigate("Register")}>
-                  Sign Up
-                </Text>
+                Sign Up
               </Text>
+            </Text>
 
-              <TouchableOpacity style={styles.guestBtn} onPress={continueAsGuest}>
-  <Text style={styles.guestText}>Continue as Guest</Text>
-</TouchableOpacity>
-
-            </View>
+            <TouchableOpacity style={styles.guestBtn} onPress={continueAsGuest}>
+              <Text style={styles.guestText}>Continue as Guest 🍽️</Text>
+            </TouchableOpacity>
           </View>
-        </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    backgroundColor: "#fff5f5",
+  },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 40,
-    paddingHorizontal: 30,
+    paddingHorizontal: 25,
   },
-  container: { width: "100%", alignItems: "center" },
-  logo: { width: 200, height: 200, marginBottom: 10, borderRadius: 100 },
+  card: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 25,
+    paddingVertical: 40,
+    paddingHorizontal: 25,
+    alignItems: "center",
+    shadowColor: "#ff6b6b",
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  logo: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: "#ff6b6b",
+  },
   title: {
     fontSize: 26,
     fontWeight: "bold",
     color: "#ff3b3b",
-    marginTop: 5,
-    marginBottom: 25,
+    marginBottom: 6,
   },
-  formContainer: { width: "100%", alignItems: "center" },
+  subtitle: {
+    color: "#555",
+    marginBottom: 25,
+    fontSize: 14,
+  },
+  form: {
+    width: "100%",
+  },
   input: {
     width: "100%",
     backgroundColor: "#fff",
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#eee",
+    borderRadius: 15,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     marginBottom: 12,
-    fontSize: 16,
+    fontSize: 15,
     elevation: 1,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 2,
   },
-  forgotContainer: { width: "100%", alignItems: "flex-end", marginBottom: -15 },
-  forgotPasswordText: { color: "#007bff", fontSize: 13 },
-  errorText: { color: "#ff4d4d", fontSize: 14, marginBottom: 10, alignSelf: "flex-start" },
-  loginBtn: {
-    width: "100%",
+  errorText: {
+    color: "#ff4d4d",
+    fontSize: 14,
+    marginBottom: 10,
+    alignSelf: "flex-start",
+  },
+  button: {
     backgroundColor: "#ff3b3b",
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: 15,
     alignItems: "center",
     marginTop: 5,
-    elevation: 2,
-    shadowColor: "#ff3b3b",
-    shadowOpacity: 0.4,
-    shadowRadius: 3,
+    elevation: 3,
   },
-  loginText: { color: "#fff", fontSize: 17, fontWeight: "bold" },
-  signupText: { marginTop: 15, fontSize: 15, color: "#333" },
-  signupLink: { color: "#ff3b3b", fontWeight: "bold" },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 17,
+  },
+  forgotContainer: {
+    marginTop: 12,
+    alignSelf: "flex-end",
+  },
+  forgotText: {
+    color: "#ff6b6b",
+    fontSize: 13,
+  },
+  signupText: {
+    marginTop: 25,
+    fontSize: 15,
+    color: "#333",
+    textAlign: "center",
+  },
+  signupLink: {
+    color: "#ff3b3b",
+    fontWeight: "bold",
+  },
   guestBtn: {
-    marginTop: 20,
+    marginTop: 25,
+    backgroundColor: "#f97377ff",
     paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 25,
-    backgroundColor: "#f8a1c4",
+    borderRadius: 20,
+    alignItems: "center",
     elevation: 2,
   },
-  guestText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  guestText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });

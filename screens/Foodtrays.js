@@ -1,57 +1,92 @@
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState, useContext } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { ENDPOINTS } from "../config";
+import { ThemeContext } from "../contexts/ThemeContext";
 
 export default function Foodtrays() {
   const [trays, setTrays] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { darkMode } = useContext(ThemeContext);
+
+  const theme = {
+    bg: darkMode ? "#121212" : "#fff",
+    text: darkMode ? "#fff" : "#333",
+    card: darkMode ? "#1e1e1e" : "#f8f8f8",
+  };
 
   useEffect(() => {
     const fetchTrays = async () => {
       try {
-        const res = await fetch(ENDPOINTS.PRODUCTS);
-        const data = await res.json();
-
-        // ✅ Filter Party Trays only
-        const filtered = data.filter(
-          (item) => item.product_desc?.toLowerCase() === "party trays"
-        );
-
-        setTrays(filtered);
+        const res = await fetch(`${ENDPOINTS.PRODUCTS}/all`);
+        const result = await res.json();
+        if (result.success) {
+          const filtered = result.products.filter(
+            (item) => item.product_desc?.toLowerCase() === "party trays"
+          );
+          setTrays(filtered);
+        }
       } catch (err) {
         console.error("❌ Error fetching Party Trays:", err);
       } finally {
         setLoading(false);
       }
     };
-
     fetchTrays();
   }, []);
 
-  if (loading) return <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />;
+  if (loading)
+    return (
+      <View style={[styles.center, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator size="large" color="deeppink" />
+      </View>
+    );
 
   return (
-    <FlatList
-      data={trays}
-      keyExtractor={(item) => item._id}
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          <Image
-            source={{ uri: `${ENDPOINTS.PRODUCTS}/image/${item._id}` }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-          <Text style={styles.name}>{item.prod_desc}</Text>
-          <Text style={styles.price}>₱{item.prod_unit_price}</Text>
-        </View>
-      )}
-    />
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      <FlatList
+        data={trays}
+        keyExtractor={(item) => item._id}
+        numColumns={2}
+        renderItem={({ item }) => (
+          <View style={[styles.card, { backgroundColor: theme.card }]}>
+            <Image
+              source={{
+                uri: item.image_url || `${ENDPOINTS.PRODUCTS}/image/${item._id}`,
+              }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+            <Text style={[styles.name, { color: theme.text }]}>
+              {item.prod_desc}
+            </Text>
+            <Text style={styles.price}>₱{item.prod_unit_price}</Text>
+          </View>
+        )}
+        contentContainerStyle={{ paddingVertical: 20 }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#fff", borderRadius: 10, margin: 10, padding: 10, alignItems: "center", elevation: 3 },
-  image: { width: 120, height: 120, borderRadius: 10 },
-  name: { marginTop: 10, fontWeight: "bold", fontSize: 16 },
-  price: { color: "green", fontSize: 14 },
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  card: {
+    borderRadius: 10,
+    margin: 10,
+    padding: 10,
+    alignItems: "center",
+    elevation: 3,
+    flex: 1,
+  },
+  image: { width: 130, height: 130, borderRadius: 10 },
+  name: { marginTop: 10, fontWeight: "bold", fontSize: 15, textAlign: "center" },
+  price: { color: "deeppink", fontSize: 14, marginTop: 4 },
 });

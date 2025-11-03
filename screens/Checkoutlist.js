@@ -26,7 +26,10 @@ const Checkoutlist = () => {
   const route = useRoute();
   const { darkMode } = useContext(ThemeContext);
 
-  const { items = [], subtotal = 0, shippingFee = 0, total = 0 } = route?.params || {};
+  const { items = [], subtotal = 0, shippingFee: initialShippingFee = 0 } = route?.params || {};
+  const [shippingFee, setShippingFee] = useState(initialShippingFee);
+  const [total, setTotal] = useState(subtotal + initialShippingFee);
+
   const [user, setUser] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [deliveryOption, setDeliveryOption] = useState("DELIVERY");
@@ -64,6 +67,7 @@ const Checkoutlist = () => {
     return isNaN(num) ? "0.00" : num.toFixed(2);
   };
 
+  // ✅ Load user info & delivery info specific to that user
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
 
@@ -73,15 +77,30 @@ const Checkoutlist = () => {
         if (storedUser) {
           const parsed = JSON.parse(storedUser);
           setUser(parsed);
-          setFormData({
-            contactNumber: parsed.contactNumber || "",
-            blk: parsed.blk || "",
-            lot: parsed.lot || "",
-            city: parsed.city || "",
-            province: parsed.province || "",
-            zipcode: parsed.zipcode || "",
-            barangay: parsed.barangay || "",
-          });
+
+          // ✅ Always ensure consistent userId reference
+          const userId = parsed.id || parsed._id || parsed.userId;
+          if (!userId) return;
+
+          console.log("🔍 Loading delivery info for user:", userId);
+
+          const savedDelivery = await AsyncStorage.getItem(`deliveryInfo_${userId}`);
+
+          if (savedDelivery) {
+            const parsedDelivery = JSON.parse(savedDelivery);
+            setFormData(parsedDelivery);
+          } else {
+            setFormData({
+              contactNumber: parsed.contactNumber || "",
+              blk: parsed.blk || "",
+              lot: parsed.lot || "",
+              city: parsed.city || "",
+              province: parsed.province || "",
+              zipcode: parsed.zipcode || "",
+              barangay: parsed.barangay || "",
+            });
+          }
+
           setNote(parsed.note || "");
         }
       } catch (error) {
@@ -90,14 +109,32 @@ const Checkoutlist = () => {
     })();
   }, []);
 
+  // ✅ Auto update shipping & total when delivery option changes
+  useEffect(() => {
+    if (deliveryOption === "PICKUP") {
+      setShippingFee(0);
+      setTotal(subtotal);
+    } else {
+      setShippingFee(initialShippingFee);
+      setTotal(subtotal + initialShippingFee);
+    }
+  }, [deliveryOption, subtotal]);
+
+  // ✅ Save delivery info specifically per logged-in user
   const handleSaveChanges = async () => {
     try {
       const storedUser = await AsyncStorage.getItem("user");
-      const updated = storedUser ? { ...JSON.parse(storedUser), ...formData } : { ...formData };
-      await AsyncStorage.setItem("user", JSON.stringify(updated));
-      setUser(updated);
+      if (!storedUser) throw new Error("No user logged in");
+
+      const parsedUser = JSON.parse(storedUser);
+      const userId = parsedUser.id || parsedUser._id || parsedUser.userId;
+      if (!userId) throw new Error("User ID missing");
+
+      console.log("🗂️ Saving delivery info for user:", userId);
+
+      await AsyncStorage.setItem(`deliveryInfo_${userId}`, JSON.stringify(formData));
       setModalVisible(false);
-      Alert.alert("Success", "Information updated locally.");
+      Alert.alert("Success", "Your delivery information has been saved.");
     } catch (error) {
       console.error(error);
       Alert.alert("Error", "Failed to save info.");
@@ -113,6 +150,7 @@ const Checkoutlist = () => {
     return true;
   };
 
+  // ✅ Place order
   const placeOrder = async () => {
     try {
       const storedUser = await AsyncStorage.getItem("user");
@@ -122,7 +160,7 @@ const Checkoutlist = () => {
       if (deliveryOption === "DELIVERY" && !validateDeliveryFields()) return;
 
       const orderData = {
-        UserId: userData.id || userData._id,
+        UserId: userData.id || userData._id || userData.userId,
         Name: userData.Name || userData.name,
         Email: userData.Email || userData.email,
         Items: items.map((i) => ({
@@ -136,13 +174,13 @@ const Checkoutlist = () => {
         Total: total,
         DeliveryOption: deliveryOption,
         PaymentMethod: paymentMethod,
-        Barangay: formData.barangay || userData.Barangay || "",
-        City: formData.city || userData.City || "",
-        Province: formData.province || userData.Province || "",
-        Blk: formData.blk || userData.Blk || "",
-        Lot: formData.lot || userData.Lot || "",
-        Zipcode: formData.zipcode || userData.Zipcode || "",
-        ContactNumber: formData.contactNumber || userData.ContactNumber || "",
+        Barangay: formData.barangay,
+        City: formData.city,
+        Province: formData.province,
+        Blk: formData.blk,
+        Lot: formData.lot,
+        Zipcode: formData.zipcode,
+        ContactNumber: formData.contactNumber,
         Note: note || "",
         Status: "PENDING",
       };
@@ -157,7 +195,13 @@ const Checkoutlist = () => {
 
       if (res.ok && data.success) {
         Alert.alert("Success", "Order placed successfully! Status: Pending");
-        await AsyncStorage.removeItem("cart");
+
+        const currentCart = JSON.parse(await AsyncStorage.getItem("cart")) || [];
+        const updatedCart = currentCart.filter(
+          (cartItem) => !items.some((orderedItem) => orderedItem._id === cartItem._id)
+        );
+        await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
+
         navigation.navigate("Home");
       } else {
         Alert.alert("Error", data.message || "Failed to place order");
@@ -271,6 +315,7 @@ const Checkoutlist = () => {
         </View>
       </ScrollView>
 
+      {/* Modal to Edit Info */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: theme.modalBg }]}>
@@ -327,10 +372,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
-  backButton: {
-    padding: 5,
-    marginRight: 5,
-  },
+  backButton: { padding: 5, marginRight: 5 },
   header: { fontSize: 22, fontWeight: "bold" },
   contactBox: {
     padding: 15,

@@ -21,6 +21,7 @@ const Cart = () => {
   const navigation = useNavigation();
   const { darkMode } = useContext(ThemeContext);
 
+  // Load cart from AsyncStorage when screen focuses
   useFocusEffect(
     useCallback(() => {
       const loadCart = async () => {
@@ -38,6 +39,7 @@ const Cart = () => {
     }, [])
   );
 
+  // Update quantity (increase/decrease)
   const updateQuantity = async (index, change) => {
     const updatedCart = [...cartItems];
     updatedCart[index].quantity += change;
@@ -46,6 +48,7 @@ const Cart = () => {
     await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
   };
 
+  // Remove a specific item
   const removeItem = async (index) => {
     const updatedCart = [...cartItems];
     updatedCart.splice(index, 1);
@@ -57,17 +60,20 @@ const Cart = () => {
     Alert.alert("Removed", "Item removed from cart");
   };
 
+  // Select/unselect one item
   const toggleSelection = (index) => {
     const updatedSelection = [...selectedItems];
     updatedSelection[index] = !updatedSelection[index];
     setSelectedItems(updatedSelection);
   };
 
+  // Select/unselect all
   const toggleSelectAll = () => {
     const allSelected = selectedItems.every((sel) => sel);
     setSelectedItems(new Array(cartItems.length).fill(!allSelected));
   };
 
+  // Calculate subtotal for selected items only
   const subtotal = cartItems.reduce((sum, item, idx) => {
     if (selectedItems[idx])
       return (
@@ -80,6 +86,7 @@ const Cart = () => {
   const shippingFee = subtotal > 0 ? 50 : 0;
   const anySelected = selectedItems.some((s) => s);
 
+  // Proceed to Checkout Screen
   const handleCheckout = async () => {
     if (!anySelected) return;
 
@@ -91,10 +98,7 @@ const Cart = () => {
 
     const itemsToBuy = cartItems.filter((_, index) => selectedItems[index]);
     if (itemsToBuy.length === 0) {
-      Alert.alert(
-        "No Items Selected",
-        "Please select at least one item to checkout."
-      );
+      Alert.alert("No Items Selected", "Please select at least one item.");
       return;
     }
 

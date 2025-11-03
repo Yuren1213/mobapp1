@@ -126,12 +126,11 @@ setCartCount(uniqueProducts.length);
   const filteredProducts = searchQuery
     ? products.filter((p) => p.prod_desc.toLowerCase().includes(searchQuery.toLowerCase()))
     : products;
-
   const theme = {
-    bg: darkMode ? "#121212" : "#ffe6e6",
+    bg: darkMode ? "black" : "#ffe6e6",
     card: darkMode ? "#1f1f1f" : "#fff",
     text: darkMode ? "#fff" : "#333",
-    subText: darkMode ? "#aaa" : "#333",
+    subText: darkMode ? "#aaa" : "#333",  
     placeholder: darkMode ? "#888" : "#999",
     navBg: darkMode ? "#1a1a1a" : "#fff",
     navText: darkMode ? "#fff" : "#000",
@@ -139,7 +138,7 @@ setCartCount(uniqueProducts.length);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* Header */}
+      
       <View style={styles.header}>
         <TouchableOpacity style={{ flexDirection: "row", alignItems: "center" }} onPress={toggleDrawer}>
           {profileImage ? (
@@ -148,7 +147,7 @@ setCartCount(uniqueProducts.length);
             <Ionicons name="person-circle" size={35} color={theme.text} />
           )}
         <Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 10, color: theme.text }}>
-  {user ? `Hi, ${user.Name || user.name}!` : "Hi there!"}
+  {user ? `Hi, ${user.Name || user.name}!` : "Hi Guest!"}
 </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>

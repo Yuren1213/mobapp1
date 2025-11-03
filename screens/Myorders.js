@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext, useRef } from "react";
 import {
   View,
   Text,
@@ -6,58 +6,127 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  StyleSheet,
   RefreshControl,
-  useColorScheme,
+  Image,
+  StyleSheet,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native";
+import { ThemeContext } from "../contexts/ThemeContext";
 
 const ENDPOINTS = {
   ORDERS: "https://untooled-rostrally-trent.ngrok-free.dev/api/orders",
 };
 
-export default function MyOrdersScreen() {
+// 💀 Dark Theme
+const blackTheme = {
+  bg: "#000000",
+  card: "rgba(30,30,30,0.6)",
+  border: "rgba(255,255,255,0.2)",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#AAAAAA",
+  primary: "#3B82F6",
+  statusDefault: { color: "#CCCCCC" },
+  statusPending: { color: "#FACC15" },
+  statusCompleted: { color: "#4ADE80" },
+  statusCancelled: { color: "#F87171" },
+  expandBackground: "rgba(255,255,255,0.12)",
+  itemsBackground: "rgba(20,20,20,0.6)",
+  cancelButton: "#FF3B30",
+  cancelButtonText: "#FFFFFF",
+};
+
+// ☀️ Light Theme
+const lightTheme = {
+  bg: "#FFFFFF",
+  card: "rgba(255,255,255,0.7)",
+  border: "rgba(200,200,200,0.3)",
+  textPrimary: "#111111",
+  textSecondary: "#555555",
+  primary: "#007AFF",
+  statusDefault: { color: "#666666" },
+  statusPending: { color: "#F59E0B" },
+  statusCompleted: { color: "#16A34A" },
+  statusCancelled: { color: "#DC2626" },
+  expandBackground: "rgba(240,240,240,0.8)",
+  itemsBackground: "#FFFFFF",
+  cancelButton: "#FF3B30",
+  cancelButtonText: "#FFFFFF",
+};
+
+export default function MyOrders() {
+  const navigation = useNavigation();
+  const { darkMode } = useContext(ThemeContext);
+  const theme = darkMode ? blackTheme : lightTheme;
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [user, setUser] = useState(null);
-
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const theme = isDark ? darkTheme : lightTheme;
+  const previousOrdersRef = useRef({});
 
   useEffect(() => {
     const loadUserAndOrders = async () => {
-      try {
-        const userData = await AsyncStorage.getItem("user");
-        if (!userData) {
-          Alert.alert("Error", "No user found. Please log in again.");
-          return;
-        }
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-        fetchOrders(parsedUser.id);
-      } catch (err) {
-        console.error("Error loading user:", err);
+      const userData = await AsyncStorage.getItem("user");
+      if (!userData) {
+        Alert.alert("Error", "No user found. Please log in again.");
+        return;
       }
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+      fetchOrders(parsedUser.id);
     };
     loadUserAndOrders();
   }, []);
 
-  const fetchOrders = async (userId) => {
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      fetchOrders(user.id, true);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const fetchOrders = async (userId, silent = false) => {
     if (!userId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
-      const response = await fetch(`${ENDPOINTS.ORDERS}/user/${userId}`);
-      const rawText = await response.text();
-      const data = JSON.parse(rawText);
-      setOrders(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("❌ Fetch error:", error);
-      Alert.alert("Error", "Failed to fetch orders. Please try again.");
+      const res = await fetch(`${ENDPOINTS.ORDERS}/user/${userId}`);
+      const text = await res.text();
+      const newOrders = JSON.parse(text);
+      setOrders(Array.isArray(newOrders) ? newOrders : []);
+
+      for (const order of newOrders) {
+        const prevStatus = previousOrdersRef.current[order._id];
+        if (prevStatus && prevStatus !== order.status) {
+          await createLocalNotification(order);
+        }
+        previousOrdersRef.current[order._id] = order.status;
+      }
+    } catch (err) {
+      console.error("Fetch orders error:", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
+    }
+  };
+
+  const createLocalNotification = async (order) => {
+    try {
+      const notif = {
+        _id: `${order._id}-${Date.now()}`,
+        orderId: order._id,
+        message: `Your order #${order._id} status changed to ${order.status}.`,
+        type: order.status.toLowerCase(),
+        createdAt: new Date().toISOString(),
+      };
+      const stored = await AsyncStorage.getItem("notifications");
+      const existing = stored ? JSON.parse(stored) : [];
+      existing.unshift(notif);
+      await AsyncStorage.setItem("notifications", JSON.stringify(existing));
+    } catch (err) {
+      console.error("Save notification error:", err);
     }
   };
 
@@ -68,7 +137,6 @@ export default function MyOrdersScreen() {
     setRefreshing(false);
   };
 
-  // ✅ Cancel order and push notification locally
   const cancelOrder = async (orderId) => {
     if (!user) return;
     Alert.alert("Cancel Order", "Are you sure you want to cancel this order?", [
@@ -81,45 +149,31 @@ export default function MyOrdersScreen() {
               `${ENDPOINTS.ORDERS}/${user.id}/${orderId}/cancel`,
               { method: "PATCH" }
             );
-            const rawText = await res.text();
-            const data = JSON.parse(rawText);
-
+            const data = await res.json();
             if (data.success) {
               Alert.alert("Success", "Order cancelled successfully!");
               fetchOrders(user.id);
-
-              // ✅ Save a notification locally
-              const newNotif = {
-                _id: Date.now().toString(),
-                type: "cancelled",
-                message: `Your order #${orderId} was cancelled.`,
-                createdAt: new Date().toISOString(),
-              };
-
-              const existing = await AsyncStorage.getItem("notifications");
-              const parsed = existing ? JSON.parse(existing) : [];
-              parsed.unshift(newNotif); // Add new notif to the top
-              await AsyncStorage.setItem(
-                "notifications",
-                JSON.stringify(parsed)
-              );
-            } else {
-              Alert.alert("Error", data.message || "Failed to cancel order.");
+              await createLocalNotification({
+                _id: orderId,
+                status: "Cancelled",
+              });
             }
           } catch (err) {
             console.error("Cancel order error:", err);
-            Alert.alert("Error", "Network error: " + err.message);
           }
         },
       },
     ]);
   };
 
+  const getSafeImage = (item) =>
+    item.image || item.image_url
+      ? { uri: item.image || item.image_url }
+      : require("../assets/images/1.jpg");
+
   if (loading && !refreshing) {
     return (
-      <View
-        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
-      >
+      <View style={[styles.loadingContainer, { backgroundColor: theme.bg }]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
           Loading orders...
@@ -129,10 +183,35 @@ export default function MyOrdersScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      {/* Header */}
+      <View
+        style={[
+          styles.headerContainer,
+          { backgroundColor: theme.bg, borderColor: theme.border },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={24} color={theme.primary} />
+        </TouchableOpacity>
+
+        {/* Centered Title */}
+        <View style={{ flex: 1, alignItems: "center" }}>
+          <Text style={[styles.header, { color: theme.textPrimary }]}>
+            My Orders
+          </Text>
+        </View>
+
+        <View style={{ width: 34 }} />
+      </View>
+
+      {/* Orders List */}
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
-        style={[styles.container, { backgroundColor: theme.background }]}
+        style={[styles.container, { backgroundColor: theme.bg }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -142,18 +221,14 @@ export default function MyOrdersScreen() {
           />
         }
       >
-        <Text style={[styles.header, { color: theme.textPrimary }]}>
-          My Orders
-        </Text>
-
         {orders.length === 0 ? (
           <Text style={[styles.noOrdersText, { color: theme.textSecondary }]}>
             You have no orders yet.
           </Text>
         ) : (
           orders.map((order) => {
-            const isExpanded = expanded === order.id || expanded === order._id;
             const orderId = order._id || order.id;
+            const isExpanded = expanded === orderId;
 
             let statusStyle = theme.statusDefault;
             if (order.status === "Pending") statusStyle = theme.statusPending;
@@ -167,23 +242,24 @@ export default function MyOrdersScreen() {
                 key={orderId}
                 style={[
                   styles.orderCard,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    borderColor: theme.border,
-                  },
+                  { backgroundColor: theme.card, borderColor: theme.border },
                 ]}
               >
                 <View style={styles.orderHeader}>
                   <Text style={[styles.orderId, { color: theme.textPrimary }]}>
                     #{orderId}
                   </Text>
-                  <Text style={[styles.statusBadge, statusStyle]}>
+                  <Text
+                    style={[styles.statusBadge, { color: statusStyle.color }]}
+                  >
                     {order.status}
                   </Text>
                 </View>
 
                 <View style={styles.orderSummary}>
-                  <Text style={[styles.orderTotal, { color: theme.textPrimary }]}>
+                  <Text
+                    style={[styles.orderTotal, { color: theme.textPrimary }]}
+                  >
                     Total: ₱{order.total?.toFixed(2)}
                   </Text>
                   <Text
@@ -210,6 +286,7 @@ export default function MyOrdersScreen() {
                   </Text>
                 </TouchableOpacity>
 
+                {/* ✅ Expanded Items Section with Image */}
                 {isExpanded && (
                   <View
                     style={[
@@ -230,16 +307,26 @@ export default function MyOrdersScreen() {
                           },
                         ]}
                       >
-                        <Text
-                          style={[styles.itemTitle, { color: theme.textPrimary }]}
-                        >
-                          {item.title}
-                        </Text>
-                        <Text
-                          style={[styles.itemPrice, { color: theme.textPrimary }]}
-                        >
-                          ₱{item.price} × {item.quantity}
-                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                          <Image
+                            source={getSafeImage(item)}
+                            style={styles.itemImage}
+                            resizeMode="cover"
+                          />
+                          <View style={{ marginLeft: 10, flex: 1 }}>
+                            <Text
+                              style={[
+                                styles.itemTitle,
+                                { color: theme.textPrimary },
+                              ]}
+                            >
+                              {item.title}
+                            </Text>
+                            <Text style={{ color: theme.textSecondary }}>
+                              ₱{item.price} × {item.quantity}
+                            </Text>
+                          </View>
+                        </View>
                       </View>
                     ))}
                   </View>
@@ -248,20 +335,9 @@ export default function MyOrdersScreen() {
                 {order.status === "Pending" && (
                   <TouchableOpacity
                     onPress={() => cancelOrder(orderId)}
-                    style={[
-                      styles.cancelButton,
-                      {
-                        backgroundColor: theme.cancelButton,
-                        marginBottom: 8,
-                      },
-                    ]}
+                    style={[styles.cancelButton]}
                   >
-                    <Text
-                      style={[
-                        styles.cancelButtonText,
-                        { color: theme.cancelButtonText },
-                      ]}
-                    >
+                    <Text style={[styles.cancelButtonText]}>
                       Cancel Order
                     </Text>
                   </TouchableOpacity>
@@ -275,71 +351,91 @@ export default function MyOrdersScreen() {
   );
 }
 
-// Themes
-const lightTheme = {
-  background: "#F9FAFB",
-  cardBackground: "#FFFFFF",
-  textPrimary: "#111827",
-  textSecondary: "#6B7280",
-  border: "#E5E7EB",
-  primary: "#2563EB",
-  expandBackground: "#DBEAFE",
-  itemsBackground: "#F3F4F6",
-  cancelButton: "#DC2626",
-  cancelButtonText: "#FFFFFF",
-  statusPending: { backgroundColor: "#FEF3C7", color: "#B45309" },
-  statusCancelled: { backgroundColor: "#FEE2E2", color: "#B91C1C" },
-  statusCompleted: { backgroundColor: "#D1FAE5", color: "#047857" },
-  statusDefault: { backgroundColor: "#E5E7EB", color: "#374151" },
-};
-
-const darkTheme = {
-  background: "#1F2937",
-  cardBackground: "#374151",
-  textPrimary: "#F9FAFB",
-  textSecondary: "#D1D5DB",
-  border: "#4B5563",
-  primary: "#60A5FA",
-  expandBackground: "#2563EB33",
-  itemsBackground: "#4B5563",
-  cancelButton: "#DC2626",
-  cancelButtonText: "#F9FAFB",
-  statusPending: { backgroundColor: "#78350F", color: "#FBBF24" },
-  statusCancelled: { backgroundColor: "#7F1D1D", color: "#FECACA" },
-  statusCompleted: { backgroundColor: "#064E3B", color: "#BBF7D0" },
-  statusDefault: { backgroundColor: "#374151", color: "#D1D5DB" },
-};
-
-// Styles
 const styles = StyleSheet.create({
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingBottom: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 0.5,
+    borderColor: "rgba(150,150,150,0.2)",
+  },
+  backButton: { marginRight: 10 },
+  header: { fontSize: 22, fontWeight: "700", letterSpacing: 0.3 },
   container: { flex: 1, padding: 16 },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { marginTop: 8, fontSize: 16 },
-  header: { fontSize: 28, fontWeight: "700", marginBottom: 16 },
-  noOrdersText: { fontSize: 16, textAlign: "center", marginTop: 40 },
+  noOrdersText: {
+    textAlign: "center",
+    marginTop: 120,
+    fontSize: 16,
+    opacity: 0.6,
+  },
   orderCard: {
     borderRadius: 20,
     padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
+    marginBottom: 18,
+    borderWidth: 0.5,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
   },
-  orderHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  orderId: { fontWeight: "700", fontSize: 16 },
-  statusBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, fontSize: 12, fontWeight: "600" },
-  orderSummary: { marginBottom: 8 },
-  orderTotal: { fontSize: 14, fontWeight: "600" },
-  orderDate: { fontSize: 12 },
-  expandButton: { marginTop: 4, paddingVertical: 8, borderRadius: 12 },
-  expandButtonText: { textAlign: "center", fontWeight: "600", fontSize: 14 },
-  itemsContainer: { marginTop: 8, borderRadius: 12, padding: 8, borderWidth: 1 },
-  itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1 },
-  itemTitle: { fontSize: 14 },
-  itemPrice: { fontSize: 14 },
-  cancelButton: { paddingVertical: 12, borderRadius: 16, marginTop: 12 },
-  cancelButtonText: { textAlign: "center", fontWeight: "600", fontSize: 16 },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  orderId: { fontWeight: "700", fontSize: 17, letterSpacing: 0.3 },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 50,
+    overflow: "hidden",
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "capitalize",
+  },
+  orderSummary: { marginBottom: 10 },
+  orderTotal: { fontWeight: "700", fontSize: 16 },
+  orderDate: { fontSize: 13, opacity: 0.7 },
+  expandButton: {
+    padding: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  expandButtonText: { fontWeight: "600", fontSize: 14 },
+  itemsContainer: {
+    marginTop: 10,
+    borderWidth: 0.6,
+    borderRadius: 12,
+    padding: 10,
+  },
+  itemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+  },
+  itemImage: { width: 50, height: 50, borderRadius: 8 },
+  itemTitle: { fontSize: 15, fontWeight: "600" },
+  cancelButton: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "#FF3B30",
+  },
+  cancelButtonText: {
+    fontWeight: "700",
+    color: "#fff",
+    fontSize: 15,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: { marginTop: 10, opacity: 0.7 },
 });

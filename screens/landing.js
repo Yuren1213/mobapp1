@@ -21,17 +21,15 @@ const Landing = () => {
   const [cartCount, setCartCount] = useState(0);
   const [cartItems, setCartItems] = useState([]);
 
-  // 🧠 Load Cart Info whenever focused
+  // 🧠 Load cart every time screen is focused
   useFocusEffect(
     useCallback(() => {
       const loadCart = async () => {
         try {
-          const storedUser = await AsyncStorage.getItem("user");
-          const user = storedUser ? JSON.parse(storedUser) : null;
           const storedCart = await AsyncStorage.getItem("cart");
           const items = storedCart ? JSON.parse(storedCart) : [];
           setCartItems(items);
-          setCartCount(items.reduce((sum, item) => sum + (item.quantity || 1), 0));
+          setCartCount(items.length);
         } catch (err) {
           console.error("Error loading cart:", err);
         }
@@ -48,20 +46,19 @@ const Landing = () => {
     );
   }
 
-  // 🧮 Handle both local & backend images
+  // 🖼 Handle image
   const imageSource =
     food.image && typeof food.image !== "string"
-      ? food.image // local require()
+      ? food.image
       : food.image_url
-      ? { uri: food.image_url } // from backend
-      : require("../assets/images/1.jpg"); // fallback image
+      ? { uri: food.image_url }
+      : require("../assets/images/1.jpg");
 
-  // ✅ Handle both API and local sample products
   const foodName = food.title || food.prod_desc || "Unnamed Product";
   const foodPrice = food.price || food.prod_unit_price || 0;
   const totalPrice = foodPrice * quantity;
 
-  // 🛒 Add to Cart
+  // 🛒 Add to cart (real-time fix)
   const addToCart = async () => {
     try {
       const storedUser = await AsyncStorage.getItem("user");
@@ -75,6 +72,7 @@ const Landing = () => {
       const storedCart = await AsyncStorage.getItem("cart");
       let cart = storedCart ? JSON.parse(storedCart) : [];
 
+      // Check if item already exists
       const existingIndex = cart.findIndex(
         (item) => item._id === food._id || item.id === food.id
       );
@@ -91,11 +89,14 @@ const Landing = () => {
         });
       }
 
+      // ✅ Save updated cart to storage
       await AsyncStorage.setItem("cart", JSON.stringify(cart));
-      setCartItems(cart);
-      setCartCount(cart.reduce((sum, item) => sum + (item.quantity || 1), 0));
 
-      // Optional: Sync to backend
+      // ✅ Update local states immediately (real-time update)
+      setCartItems(cart);
+      setCartCount(cart.length);
+
+      // Optional: sync with backend
       if (user._id) {
         await fetch(`${API_URL}/cart/${user._id}`, {
           method: "PUT",
@@ -111,7 +112,7 @@ const Landing = () => {
     }
   };
 
-  // ⚡ Go to Checkout Page
+  // ⚡ Go to Checkout
   const orderNow = () => {
     navigation.navigate("Checkoutlist", {
       items: [{ ...food, quantity }],
@@ -131,7 +132,10 @@ const Landing = () => {
 
         <Text style={styles.headerTitle}>Details</Text>
 
-        <TouchableOpacity style={styles.cartIcon} onPress={() => navigation.navigate("Cart")}>
+        <TouchableOpacity
+          style={styles.cartIcon}
+          onPress={() => navigation.navigate("Cart")}
+        >
           <Ionicons name="cart" size={28} color="black" />
           {cartCount > 0 && (
             <View style={styles.redDot}>
@@ -167,7 +171,10 @@ const Landing = () => {
 
         <Text style={styles.qtyNumber}>{quantity}</Text>
 
-        <TouchableOpacity style={styles.qtyButton} onPress={() => setQuantity(quantity + 1)}>
+        <TouchableOpacity
+          style={styles.qtyButton}
+          onPress={() => setQuantity(quantity + 1)}
+        >
           <Text style={styles.qtyText}>+</Text>
         </TouchableOpacity>
       </View>
@@ -225,7 +232,13 @@ const styles = StyleSheet.create({
   separator: { height: 1, backgroundColor: "#ccc", marginVertical: 8 },
 
   quantityContainer: { flexDirection: "row", alignItems: "center", marginVertical: 10 },
-  qtyButton: { borderWidth: 1, borderColor: "#999", borderRadius: 4, paddingHorizontal: 15, paddingVertical: 5 },
+  qtyButton: {
+    borderWidth: 1,
+    borderColor: "#999",
+    borderRadius: 4,
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+  },
   qtyText: { fontSize: 18 },
   qtyNumber: { fontSize: 16, marginHorizontal: 15 },
 

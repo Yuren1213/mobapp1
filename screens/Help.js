@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,13 @@ import {
   Linking,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { ThemeContext } from "../contexts/ThemeContext";
 
+// FAQ content
 const faqs = [
   {
     question: "How do I place an order?",
@@ -21,11 +24,11 @@ const faqs = [
   {
     question: "Can I modify my order?",
     answer:
-      "Yes! You can modify your order before confirming checkout. After confirmation, contact support immediately.",
+      "Yes! You can modify your order before confirming checkout. After confirmation, contact us to make immediate changes.",
   },
   {
     question: "What payment methods are accepted?",
-    answer: "We accept Cash on Delivery, GCash, and Credit/Debit Cards.",
+    answer: "We accept Cash on Delivery and GCash.",
   },
   {
     question: "How can I track my order?",
@@ -34,104 +37,201 @@ const faqs = [
   {
     question: "Who do I contact for help?",
     answer:
-      "You can reach out to our support team via email or phone using the button below.",
+      "You can reach out to our email support at cantinamnl@gmail.com. We're here to help!",
   },
 ];
 
-const Help = () => {
+// 💀 Dark Theme
+const blackTheme = {
+  bg: "#000000",
+  card: "rgba(30,30,30,0.6)",
+  border: "rgba(255,255,255,0.1)",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#AAAAAA",
+  primary: "#0A84FF",
+  contactButton: "#FF2D55",
+  contactButtonText: "#FFFFFF",
+};
+
+// ☀️ Light Theme
+const lightTheme = {
+  bg: "#FFFFFF",
+  card: "rgba(255,255,255,0.9)",
+  border: "rgba(200,200,200,0.3)",
+  textPrimary: "#111111",
+  textSecondary: "#555555",
+  primary: "#007AFF",
+  contactButton: "#FF2D55",
+  contactButtonText: "#FFFFFF",
+};
+
+export default function Help() {
   const navigation = useNavigation();
+  const { darkMode } = useContext(ThemeContext);
+  const theme = darkMode ? blackTheme : lightTheme;
+
   const [loadingEmail, setLoadingEmail] = useState(false);
 
   const contactSupport = async () => {
     setLoadingEmail(true);
+    const email = "support@cantinamnl.com";
+    const mailtoURL = `mailto:${email}`;
+    const gmailURL = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}`;
+
     try {
-      const supported = await Linking.canOpenURL("mailto:support@cantinamnl.com");
+      const supported = await Linking.canOpenURL(mailtoURL);
       if (supported) {
-        await Linking.openURL("mailto:support@cantinamnl.com");
+        await Linking.openURL(mailtoURL);
       } else {
-        Alert.alert("Error", "No email app available on this device");
+        const canOpenGmail = await Linking.canOpenURL(gmailURL);
+        if (canOpenGmail) {
+          await Linking.openURL(gmailURL);
+        } else {
+          Alert.alert(
+            "No Email App Found",
+            "Please contact us manually at support@cantinamnl.com."
+          );
+        }
       }
     } catch (error) {
-      Alert.alert("Error", "Could not open mail app");
+      Alert.alert("Error", "Could not open the email app.");
     } finally {
-      // small delay before hiding loader for smoother feel
       setTimeout(() => setLoadingEmail(false), 800);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={28} color="black" />
+      <View
+        style={[
+          styles.headerContainer,
+          { backgroundColor: theme.bg, borderColor: theme.border },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Ionicons
+            name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"}
+            size={26}
+            color={theme.primary}
+          />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Help & Support</Text>
-        <View style={{ width: 28 }} />
+
+        <View style={{ flex: 1, alignItems: "center" }}>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>
+            Help & Support
+          </Text>
+        </View>
+
+        <View style={{ width: 30 }} />
       </View>
 
-      {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      {/* FAQ List */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
         {faqs.map((faq, index) => (
-          <View key={index} style={styles.faqCard}>
-            <Text style={styles.question}>{faq.question}</Text>
-            <Text style={styles.answer}>{faq.answer}</Text>
+          <View
+            key={index}
+            style={[
+              styles.faqCard,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                shadowColor: darkMode ? "#000" : "#aaa",
+              },
+            ]}
+          >
+            <Text style={[styles.question, { color: theme.textPrimary }]}>
+              {faq.question}
+            </Text>
+            <Text style={[styles.answer, { color: theme.textSecondary }]}>
+              {faq.answer}
+            </Text>
           </View>
         ))}
 
         <TouchableOpacity
-          style={[styles.contactButton, loadingEmail && styles.disabledButton]}
+          style={[
+            styles.contactButton,
+            {
+              backgroundColor: theme.contactButton,
+              opacity: loadingEmail ? 0.6 : 1,
+            },
+          ]}
           onPress={contactSupport}
           disabled={loadingEmail}
         >
           {loadingEmail ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={theme.contactButtonText} />
           ) : (
-            <Text style={styles.contactButtonText}>Contact Support</Text>
+            <Text
+              style={[
+                styles.contactButtonText,
+                { color: theme.contactButtonText },
+              ]}
+            >
+              Contact Support
+            </Text>
           )}
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#ffe6e6" },
-  header: {
+  container: { flex: 1 },
+  headerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 15,
     paddingTop: 50,
-    paddingBottom: 20,
-    backgroundColor: "#fff",
-    elevation: 2,
+    paddingBottom: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 0.5,
+    marginBottom: 20 ,
   },
-  headerTitle: { fontSize: 18, fontWeight: "bold", color: "black" },
-  content: { paddingHorizontal: 15 },
+  backButton: { marginRight: 10 },
+  headerTitle: { fontSize: 22, fontWeight: "700", letterSpacing: 0.3 },
   faqCard: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 12,
-    elevation: 1,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 0.6,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
   question: {
-    fontSize: 15,
-    fontWeight: "bold",
-    marginBottom: 5,
-    color: "#333",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 6,
+    letterSpacing: 0.2,
   },
-  answer: { fontSize: 14, color: "#555" },
+  answer: {
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.85,
+  },
   contactButton: {
-    backgroundColor: "deeppink",
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: "center",
-    marginVertical: 20,
+    marginTop: 20,
+    marginBottom: 40,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
-  disabledButton: { opacity: 0.7 },
-  contactButtonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  contactButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
 });
-
-export default Help;

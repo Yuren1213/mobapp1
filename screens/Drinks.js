@@ -1,23 +1,36 @@
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState, useRef } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  View,
+  Dimensions,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { ENDPOINTS } from "../config";
+
+const { width } = Dimensions.get("window");
 
 export default function Drinks() {
   const [drinks, setDrinks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const shimmerValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const fetchDrinks = async () => {
       try {
-        const res = await fetch(ENDPOINTS.PRODUCTS);
-        const data = await res.json();
+        const res = await fetch(`${ENDPOINTS.PRODUCTS}/all`);
+        const result = await res.json();
 
-        // ✅ Filter Drinks only
-        const filtered = data.filter(
-          (item) => item.product_desc?.toLowerCase() === "drinks"
-        );
-
-        setDrinks(filtered);
+        if (result.success) {
+          const filtered = result.products.filter(
+            (item) => item.product_desc?.toLowerCase() === "drinks"
+          );
+          setDrinks(filtered);
+        }
       } catch (err) {
         console.error("❌ Error fetching Drinks:", err);
       } finally {
@@ -28,30 +41,151 @@ export default function Drinks() {
     fetchDrinks();
   }, []);
 
-  if (loading) return <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />;
+  // ✨ Shimmer animation
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerValue, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerValue, {
+          toValue: 0,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
-  return (
-    <FlatList
-      data={drinks}
-      keyExtractor={(item) => item._id}
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          <Image
-            source={{ uri: `${ENDPOINTS.PRODUCTS}/image/${item._id}` }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Animated.View
+          style={[
+            styles.shimmer,
+            {
+              opacity: shimmerValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.3, 1],
+              }),
+            },
+          ]}
+        />
+        <Text style={styles.loadingText}>Mixing your drinks...</Text>
+      </View>
+    );
+  }
+
+  const renderItem = ({ item }) => (
+    <View style={styles.card}>
+      <LinearGradient
+        colors={["#fff", "#ffeef8"]}
+        style={styles.cardGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <Image
+          source={{
+            uri: item.image_url || `${ENDPOINTS.PRODUCTS}/image/${item._id}`,
+          }}
+          style={styles.image}
+          resizeMode="cover"
+        />
+        <View style={styles.info}>
           <Text style={styles.name}>{item.prod_desc}</Text>
           <Text style={styles.price}>₱{item.prod_unit_price}</Text>
         </View>
-      )}
-    />
+      </LinearGradient>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.header}>🥤 Refreshing Drinks</Text>
+      <FlatList
+        data={drinks}
+        keyExtractor={(item) => item._id}
+        renderItem={renderItem}
+        contentContainerStyle={styles.list}
+        numColumns={2}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#fff", borderRadius: 10, margin: 10, padding: 10, alignItems: "center", elevation: 3 },
-  image: { width: 120, height: 120, borderRadius: 10 },
-  name: { marginTop: 10, fontWeight: "bold", fontSize: 16 },
-  price: { color: "green", fontSize: 14 },
+  container: {
+    flex: 1,
+    backgroundColor: "#fff8fb",
+    paddingTop: 20,
+  },
+  header: {
+    fontSize: 22,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 10,
+    color: "#e91e63",
+  },
+  list: {
+    paddingHorizontal: 10,
+    paddingBottom: 20,
+  },
+  card: {
+    width: width / 2 - 20,
+    borderRadius: 15,
+    margin: 8,
+    backgroundColor: "#fff",
+    elevation: 4,
+    shadowColor: "#e91e63",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  cardGradient: {
+    borderRadius: 15,
+    padding: 10,
+    alignItems: "center",
+  },
+  image: {
+    width: "100%",
+    height: 140,
+    borderRadius: 12,
+  },
+  info: {
+    alignItems: "center",
+    marginTop: 8,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#444",
+    textAlign: "center",
+  },
+  price: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#e91e63",
+    marginTop: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff8fb",
+  },
+  shimmer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#f8c9dd",
+    marginBottom: 15,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#e91e63",
+    fontWeight: "500",
+  },
 });
