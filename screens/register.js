@@ -16,8 +16,9 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
-// ⚙️ Replace with your working backend URL
-const API_URL = "https://untooled-rostrally-trent.ngrok-free.dev/api/auth";
+
+
+import { ENDPOINTS } from "../config";
 
 export default function Register() {
   const navigation = useNavigation();
@@ -44,7 +45,8 @@ export default function Register() {
     setError("");
 
     try {
-      const response = await fetch(`${API_URL}/register`, {
+      // ✅ Use ENDPOINTS like in Login
+      const response = await fetch(`${ENDPOINTS.AUTH}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),

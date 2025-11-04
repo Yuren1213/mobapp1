@@ -14,12 +14,11 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { ThemeContext } from "../contexts/ThemeContext";
+import { ENDPOINTS } from "../config"; // ✅ Use your existing config import
 
-const ENDPOINTS = {
-  ORDERS: "https://untooled-rostrally-trent.ngrok-free.dev/api/orders",
-};
+const POLL_INTERVAL = 3000;
 
-// 💀 Dark Theme
+// 🌙 Dark Theme
 const blackTheme = {
   bg: "#000000",
   card: "rgba(30,30,30,0.6)",
@@ -85,19 +84,23 @@ export default function MyOrders() {
     if (!user) return;
     const interval = setInterval(() => {
       fetchOrders(user.id, true);
-    }, 3000);
+    }, POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [user]);
+
+  const ordersUrl =
+    ENDPOINTS?.ORDERS || ENDPOINTS?.AUTH?.replace("/auth", "/orders");
 
   const fetchOrders = async (userId, silent = false) => {
     if (!userId) return;
     if (!silent) setLoading(true);
     try {
-      const res = await fetch(`${ENDPOINTS.ORDERS}/user/${userId}`);
+      const res = await fetch(`${ordersUrl}/user/${userId}`);
       const text = await res.text();
       const newOrders = JSON.parse(text);
       setOrders(Array.isArray(newOrders) ? newOrders : []);
 
+      // 🔔 Notify on status change
       for (const order of newOrders) {
         const prevStatus = previousOrdersRef.current[order._id];
         if (prevStatus && prevStatus !== order.status) {
@@ -146,17 +149,19 @@ export default function MyOrders() {
         onPress: async () => {
           try {
             const res = await fetch(
-              `${ENDPOINTS.ORDERS}/${user.id}/${orderId}/cancel`,
+              `${ordersUrl}/${user.id}/${orderId}/cancel`,
               { method: "PATCH" }
             );
             const data = await res.json();
-            if (data.success) {
+            if (data.success || res.ok) {
               Alert.alert("Success", "Order cancelled successfully!");
               fetchOrders(user.id);
               await createLocalNotification({
                 _id: orderId,
                 status: "Cancelled",
               });
+            } else {
+              Alert.alert("Error", data.message || "Failed to cancel");
             }
           } catch (err) {
             console.error("Cancel order error:", err);
@@ -184,7 +189,7 @@ export default function MyOrders() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      {/* Header */}
+      {/* 🔹 Header */}
       <View
         style={[
           styles.headerContainer,
@@ -198,7 +203,6 @@ export default function MyOrders() {
           <Ionicons name="arrow-back" size={24} color={theme.primary} />
         </TouchableOpacity>
 
-        {/* Centered Title */}
         <View style={{ flex: 1, alignItems: "center" }}>
           <Text style={[styles.header, { color: theme.textPrimary }]}>
             My Orders
@@ -208,7 +212,7 @@ export default function MyOrders() {
         <View style={{ width: 34 }} />
       </View>
 
-      {/* Orders List */}
+      {/* 🔹 Orders List */}
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         style={[styles.container, { backgroundColor: theme.bg }]}
@@ -286,7 +290,6 @@ export default function MyOrders() {
                   </Text>
                 </TouchableOpacity>
 
-                {/* ✅ Expanded Items Section with Image */}
                 {isExpanded && (
                   <View
                     style={[
@@ -307,7 +310,13 @@ export default function MyOrders() {
                           },
                         ]}
                       >
-                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            flex: 1,
+                          }}
+                        >
                           <Image
                             source={getSafeImage(item)}
                             style={styles.itemImage}
@@ -320,10 +329,11 @@ export default function MyOrders() {
                                 { color: theme.textPrimary },
                               ]}
                             >
-                              {item.title}
+                              {item.title || item.name || item.prod_desc}
                             </Text>
                             <Text style={{ color: theme.textSecondary }}>
-                              ₱{item.price} × {item.quantity}
+                              ₱{item.price || item.prod_unit_price} ×{" "}
+                              {item.quantity || item.Quantity || 1}
                             </Text>
                           </View>
                         </View>

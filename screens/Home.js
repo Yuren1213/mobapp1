@@ -51,9 +51,8 @@ export default function Home() {
       if (storedImage) setProfileImage(storedImage);
 
       const cart = storedCart ? JSON.parse(storedCart) : [];
-// Count unique product IDs
-const uniqueProducts = [...new Set(cart.map(i => i._id))];
-setCartCount(uniqueProducts.length);
+      const uniqueProducts = [...new Set(cart.map((i) => i._id))];
+      setCartCount(uniqueProducts.length);
     } catch (err) {
       console.error("Error loading user data:", err);
     }
@@ -62,10 +61,13 @@ setCartCount(uniqueProducts.length);
   // Fetch all products
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`${API_URL}/Product/all`);
+      const res = await fetch(`${API_URL}/product/all`);
       const data = await res.json();
-      if (data.success) setProducts(data.products);
-      else console.warn("Failed to load products:", data.message);
+      if (data.success) {
+        setProducts(data.products);
+      } else {
+        console.warn("Failed to load products:", data.message);
+      }
     } catch (err) {
       console.error("Error fetching products:", err);
     }
@@ -94,9 +96,9 @@ setCartCount(uniqueProducts.length);
       else cart.push({ ...item, quantity: 1 });
 
       await AsyncStorage.setItem("cart", JSON.stringify(cart));
-      // Count unique product IDs
-const uniqueProducts = [...new Set(cart.map(i => i._id))];
-setCartCount(uniqueProducts.length);
+
+      const uniqueProducts = [...new Set(cart.map((i) => i._id))];
+      setCartCount(uniqueProducts.length);
 
       Alert.alert("Added to Cart", `${item.prod_desc} has been added!`);
     } catch (err) {
@@ -114,23 +116,30 @@ setCartCount(uniqueProducts.length);
   // Drawer toggle
   const toggleDrawer = () => {
     if (drawerOpen) {
-      Animated.timing(slideAnim, { toValue: -width, duration: 300, useNativeDriver: false }).start(() =>
-        setDrawerOpen(false)
-      );
+      Animated.timing(slideAnim, {
+        toValue: -width,
+        duration: 300,
+        useNativeDriver: false,
+      }).start(() => setDrawerOpen(false));
     } else {
       setDrawerOpen(true);
-      Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: false }).start();
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
     }
   };
 
   const filteredProducts = searchQuery
     ? products.filter((p) => p.prod_desc.toLowerCase().includes(searchQuery.toLowerCase()))
     : products;
+
   const theme = {
     bg: darkMode ? "black" : "#ffe6e6",
     card: darkMode ? "#1f1f1f" : "#fff",
     text: darkMode ? "#fff" : "#333",
-    subText: darkMode ? "#aaa" : "#333",  
+    subText: darkMode ? "#aaa" : "#333",
     placeholder: darkMode ? "#888" : "#999",
     navBg: darkMode ? "#1a1a1a" : "#fff",
     navText: darkMode ? "#fff" : "#000",
@@ -138,7 +147,7 @@ setCartCount(uniqueProducts.length);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={{ flexDirection: "row", alignItems: "center" }} onPress={toggleDrawer}>
           {profileImage ? (
@@ -146,9 +155,9 @@ setCartCount(uniqueProducts.length);
           ) : (
             <Ionicons name="person-circle" size={35} color={theme.text} />
           )}
-        <Text style={{ fontSize: 20, fontWeight: "bold", marginBottom: 10, color: theme.text }}>
-  {user ? `Hi, ${user.Name || user.name}!` : "Hi Guest!"}
-</Text>
+          <Text style={{ fontSize: 20, fontWeight: "bold", marginLeft: 10, color: theme.text }}>
+            {user ? `Hi, ${user.Name || user.name}!` : "Hi Guest!"}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
           <MaterialCommunityIcons name="chef-hat" size={28} color={theme.text} />
@@ -167,6 +176,7 @@ setCartCount(uniqueProducts.length);
         />
       </View>
 
+      {/* Scroll content */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
         {/* Best Sellers */}
         {!searchQuery && (
@@ -214,10 +224,14 @@ setCartCount(uniqueProducts.length);
                 onPress={() => navigation.navigate("landing", { food: product })}
               >
                 <Image
-                  source={{ uri: product.image_url }}
+                  source={{
+                    uri: product.image_url
+                      ? product.image_url
+                      : `https://posbackend-1-o9uk.onrender.com/uploads/${product.image}`,
+                  }}
                   style={styles.cardImage}
                   resizeMode="cover"
-                  defaultSource={require("../assets/images/1.jpg")}
+                 
                 />
                 <Text style={[styles.cardTitle, { color: theme.text }]}>{product.prod_desc}</Text>
                 <Text style={[styles.cardPrice, { color: theme.subText }]}>₱{product.prod_unit_price}</Text>
@@ -268,30 +282,25 @@ setCartCount(uniqueProducts.length);
       {drawerOpen && <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={toggleDrawer} />}
       <Animated.View style={[styles.drawer, { left: slideAnim, backgroundColor: theme.card }]}>
         <Text style={[styles.drawerTitle, { color: theme.text }]}>Profile</Text>
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigation.navigate("Favorites")}>
-          <Ionicons name="heart" size={22} color="deeppink" />
-          <Text style={[styles.drawerText, { color: theme.text }]}>My Favorites</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigation.navigate("Myorders")}>
-          <Ionicons name="book-outline" size={22} color="deeppink" />
-          <Text style={[styles.drawerText, { color: theme.text }]}>My Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigation.navigate("Payment")}>
-          <Ionicons name="wallet-outline" size={22} color="deeppink" />
-          <Text style={[styles.drawerText, { color: theme.text }]}>Payment</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigation.navigate("Help")}>
-          <Ionicons name="help-circle-outline" size={22} color="deeppink" />
-          <Text style={[styles.drawerText, { color: theme.text }]}>Help</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigation.navigate("Settings")}>
-          <Ionicons name="cog-outline" size={22} color="deeppink" />
-          <Text style={[styles.drawerText, { color: theme.text }]}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.drawerItem} onPress={async () => {
-          await AsyncStorage.clear();
-          navigation.replace("Login");
-        }}>
+        {[
+          ["Favorites", "heart", "My Favorites"],
+          ["Myorders", "book-outline", "My Orders"],
+          ["Payment", "wallet-outline", "Payment"],
+          ["Help", "help-circle-outline", "Help"],
+          ["Settings", "cog-outline", "Settings"],
+        ].map(([screen, icon, label]) => (
+          <TouchableOpacity key={screen} style={styles.drawerItem} onPress={() => navigation.navigate(screen)}>
+            <Ionicons name={icon} size={22} color="deeppink" />
+            <Text style={[styles.drawerText, { color: theme.text }]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          style={styles.drawerItem}
+          onPress={async () => {
+            await AsyncStorage.clear();
+            navigation.replace("Login");
+          }}
+        >
           <Ionicons name="log-out" size={22} color="deeppink" />
           <Text style={[styles.drawerText, { color: theme.text }]}>Logout</Text>
         </TouchableOpacity>
@@ -302,23 +311,75 @@ setCartCount(uniqueProducts.length);
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 15, paddingTop: 45, paddingBottom: 20, alignItems: "center" },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 15,
+    paddingTop: 45,
+    paddingBottom: 20,
+    alignItems: "center",
+  },
   greeting: { fontSize: 16, fontWeight: "600", marginLeft: 8 },
-  searchBox: { flexDirection: "row", alignItems: "center", marginHorizontal: 15, padding: 8, borderRadius: 10 },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 15,
+    padding: 8,
+    borderRadius: 10,
+  },
   searchInput: { marginLeft: 8, flex: 1, fontSize: 14 },
   sectionTitle: { fontSize: 16, fontWeight: "bold", margin: 15 },
-  cardContainer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-around", marginBottom: 10 },
-  card: { width: 180, borderRadius: 12, padding: 10, marginBottom: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
+  cardContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-around",
+    marginBottom: 10,
+  },
+  card: {
+    width: 180,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
   cardImage: { width: "100%", height: 120, borderRadius: 10, marginBottom: 6 },
   cardTitle: { fontSize: 14, fontWeight: "bold" },
   cardPrice: { fontSize: 13, marginVertical: 4 },
   cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  bottomNav: { flexDirection: "row", justifyContent: "space-around", paddingVertical: 8, borderTopWidth: 1, borderColor: "#333" },
+  bottomNav: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderColor: "#333",
+  },
   navItem: { alignItems: "center", justifyContent: "center" },
   navLabel: { fontSize: 10, marginTop: 2 },
-  cartDot: { position: "absolute", top: -5, right: -10, backgroundColor: "red", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 },
+  cartDot: {
+    position: "absolute",
+    top: -5,
+    right: -10,
+    backgroundColor: "red",
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
   cartDotText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
-  bestSellerCard: { width: 140, borderRadius: 12, marginRight: 12, padding: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
+  bestSellerCard: {
+    width: 140,
+    borderRadius: 12,
+    marginRight: 12,
+    padding: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
   bestSellerCardImage: { width: "100%", height: 90, borderRadius: 8, marginBottom: 6 },
   bestSellerTitle: { fontSize: 13, fontWeight: "600" },
   bestSellerPrice: { fontSize: 12 },
