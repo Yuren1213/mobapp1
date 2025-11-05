@@ -37,7 +37,7 @@ const faqs = [
   {
     question: "Who do I contact for help?",
     answer:
-      "You can reach out to our email support at cantinamnl@gmail.com. We're here to help!",
+      "You can reach out to us anytime via Facebook Messenger for faster response!",
   },
 ];
 
@@ -49,7 +49,7 @@ const blackTheme = {
   textPrimary: "#FFFFFF",
   textSecondary: "#AAAAAA",
   primary: "#0A84FF",
-  contactButton: "#FF2D55",
+  contactButton: "#1877F2", // Messenger blue
   contactButtonText: "#FFFFFF",
 };
 
@@ -61,7 +61,7 @@ const lightTheme = {
   textPrimary: "#111111",
   textSecondary: "#555555",
   primary: "#007AFF",
-  contactButton: "#FF2D55",
+  contactButton: "#1877F2", // Messenger blue
   contactButtonText: "#FFFFFF",
 };
 
@@ -70,33 +70,27 @@ export default function Help() {
   const { darkMode } = useContext(ThemeContext);
   const theme = darkMode ? blackTheme : lightTheme;
 
-  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const contactSupport = async () => {
-    setLoadingEmail(true);
-    const email = "support@cantinamnl.com";
-    const mailtoURL = `mailto:${email}`;
-    const gmailURL = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}`;
+    setLoading(true);
+
+    // Messenger deep link (opens Messenger app directly)
+    const messengerAppURL = "fb-messenger://user-thread/102314261772411";
+    const fallbackURL = "https://www.facebook.com/messages/t/102314261772411";
 
     try {
-      const supported = await Linking.canOpenURL(mailtoURL);
+      const supported = await Linking.canOpenURL(messengerAppURL);
       if (supported) {
-        await Linking.openURL(mailtoURL);
+        await Linking.openURL(messengerAppURL);
       } else {
-        const canOpenGmail = await Linking.canOpenURL(gmailURL);
-        if (canOpenGmail) {
-          await Linking.openURL(gmailURL);
-        } else {
-          Alert.alert(
-            "No Email App Found",
-            "Please contact us manually at support@cantinamnl.com."
-          );
-        }
+        // fallback to browser only if Messenger not installed
+        await Linking.openURL(fallbackURL);
       }
     } catch (error) {
-      Alert.alert("Error", "Could not open the email app.");
+      Alert.alert("Error", "Could not open Messenger or Facebook.");
     } finally {
-      setTimeout(() => setLoadingEmail(false), 800);
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
@@ -156,18 +150,19 @@ export default function Help() {
           </View>
         ))}
 
+        {/* Contact Support Button */}
         <TouchableOpacity
           style={[
             styles.contactButton,
             {
               backgroundColor: theme.contactButton,
-              opacity: loadingEmail ? 0.6 : 1,
+              opacity: loading ? 0.7 : 1,
             },
           ]}
           onPress={contactSupport}
-          disabled={loadingEmail}
+          disabled={loading}
         >
-          {loadingEmail ? (
+          {loading ? (
             <ActivityIndicator color={theme.contactButtonText} />
           ) : (
             <Text
@@ -176,7 +171,7 @@ export default function Help() {
                 { color: theme.contactButtonText },
               ]}
             >
-              Contact Support
+              Contact Support on Messenger
             </Text>
           )}
         </TouchableOpacity>
@@ -194,7 +189,7 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     paddingHorizontal: 18,
     borderBottomWidth: 0.5,
-    marginBottom: 20 ,
+    marginBottom: 20,
   },
   backButton: { marginRight: 10 },
   headerTitle: { fontSize: 22, fontWeight: "700", letterSpacing: 0.3 },

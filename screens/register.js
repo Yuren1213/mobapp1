@@ -1,23 +1,21 @@
-import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { useState } from "react";
 import {
   Alert,
-  View,
+  Animated,
+  ImageBackground,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  ScrollView,
-  Platform,
-  Keyboard,
   TouchableWithoutFeedback,
-  ImageBackground,
-  Animated,
+  View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-
-
-
 import { ENDPOINTS } from "../config";
 
 export default function Register() {
@@ -28,15 +26,45 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
 
+  // visibility toggles
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Animation
+  const [scaleAnim] = useState(new Animated.Value(1));
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // Password strength checker (at least 6 chars, letters + numbers)
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+
   const handleSignup = async () => {
     if (!name || !email || !password || !confirmPassword) {
       setError("All fields are required.");
       return;
     }
+
     if (!email.includes("@")) {
       setError("Please enter a valid email address.");
       return;
     }
+
+    if (!passwordRegex.test(password)) {
+      setError("Password must be at least 6 characters and include letters and numbers.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -45,7 +73,6 @@ export default function Register() {
     setError("");
 
     try {
-      // ✅ Use ENDPOINTS like in Login
       const response = await fetch(`${ENDPOINTS.AUTH}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,23 +93,6 @@ export default function Register() {
     }
   };
 
-  const [scaleAnim] = useState(new Animated.Value(1));
-
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.96,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 3,
-      useNativeDriver: true,
-    }).start();
-  };
-
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -99,7 +109,9 @@ export default function Register() {
           <ScrollView contentContainerStyle={styles.container}>
             <View style={styles.card}>
               <Text style={styles.header}>Create an Account 🍴</Text>
-              <Text style={styles.subHeader}>Join and start ordering delicious meals!</Text>
+              <Text style={styles.subHeader}>
+                Join and start ordering delicious meals!
+              </Text>
 
               <TextInput
                 style={styles.input}
@@ -107,6 +119,7 @@ export default function Register() {
                 value={name}
                 onChangeText={setName}
                 placeholderTextColor="#aaa"
+                autoCapitalize="words"
               />
 
               <TextInput
@@ -119,23 +132,62 @@ export default function Register() {
                 placeholderTextColor="#aaa"
               />
 
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-                placeholderTextColor="#aaa"
-              />
+              {/* Password box with lock icon (forces remount with key to avoid Android invisible text bug) */}
+              <View style={styles.passwordBox}>
+                <TextInput
+                  // key forces remount when showPassword toggles so Android renders correctly in prod builds
+                  key={`pwd-${showPassword ? "v" : "h"}`}
+                  style={styles.passwordInput}
+                  placeholder="Password"
+                  placeholderTextColor="#aaa"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                  autoCapitalize="none"
+                  textContentType="password"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.iconBtn}
+                  accessibilityLabel="Toggle password visibility"
+                >
+                  <Ionicons
+                    name={showPassword ? "lock-open" : "lock-closed"}
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
+              </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm Password"
-                secureTextEntry
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholderTextColor="#aaa"
-              />
+              <Text style={styles.hintText}>
+                Password must be ≥6 chars and include letters + numbers
+              </Text>
+
+              {/* Confirm password */}
+              <View style={styles.passwordBox}>
+                <TextInput
+                  key={`conf-${showConfirmPassword ? "v" : "h"}`}
+                  style={styles.passwordInput}
+                  placeholder="Confirm Password"
+                  placeholderTextColor="#aaa"
+                  secureTextEntry={!showConfirmPassword}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  autoCapitalize="none"
+                  textContentType="password"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.iconBtn}
+                  accessibilityLabel="Toggle confirm password visibility"
+                >
+                  <Ionicons
+                    name={showConfirmPassword ? "lock-open" : "lock-closed"}
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
+              </View>
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -174,7 +226,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "100%",
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 20,
     padding: 20,
     shadowColor: "#000",
@@ -193,7 +245,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#555",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 18,
   },
   input: {
     width: "100%",
@@ -205,6 +257,33 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     fontSize: 15,
     color: "#333",
+  },
+  passwordBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    marginVertical: 8,
+    paddingRight: 8,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: Platform.OS === "android" ? 12 : 14,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: "#333",
+  },
+  iconBtn: {
+    padding: 8,
+  },
+  hintText: {
+    color: "#666",
+    fontSize: 12,
+    marginTop: -4,
+    marginBottom: 6,
+    marginLeft: 4,
   },
   button: {
     backgroundColor: "#ff4d4d",

@@ -14,11 +14,10 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { ThemeContext } from "../contexts/ThemeContext";
-import { ENDPOINTS } from "../config"; // ✅ Use your existing config import
+import { ENDPOINTS, API_URL } from "../config"; // Use your config
 
 const POLL_INTERVAL = 3000;
 
-// 🌙 Dark Theme
 const blackTheme = {
   bg: "#000000",
   card: "rgba(30,30,30,0.6)",
@@ -36,7 +35,6 @@ const blackTheme = {
   cancelButtonText: "#FFFFFF",
 };
 
-// ☀️ Light Theme
 const lightTheme = {
   bg: "#FFFFFF",
   card: "rgba(255,255,255,0.7)",
@@ -60,36 +58,41 @@ export default function MyOrders() {
   const theme = darkMode ? blackTheme : lightTheme;
 
   const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [user, setUser] = useState(null);
   const previousOrdersRef = useRef({});
 
-  useEffect(() => {
-    const loadUserAndOrders = async () => {
-      const userData = await AsyncStorage.getItem("user");
-      if (!userData) {
-        Alert.alert("Error", "No user found. Please log in again.");
-        return;
-      }
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      fetchOrders(parsedUser.id);
-    };
-    loadUserAndOrders();
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(() => {
-      fetchOrders(user.id, true);
-    }, POLL_INTERVAL);
-    return () => clearInterval(interval);
-  }, [user]);
-
   const ordersUrl =
     ENDPOINTS?.ORDERS || ENDPOINTS?.AUTH?.replace("/auth", "/orders");
+
+  // 🔹 Fetch all products first
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${API_URL}/Product/all`);
+      const data = await res.json();
+      if (data.success) setProducts(data.products);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+    }
+  };
+
+  // 🔹 Merge order items with products to get real images
+  const mergeOrderWithProducts = (orderItems) => {
+    return orderItems.map((item) => {
+      const prod = products.find(
+        (p) => p._id === item.productId || p.id === item.productId
+      );
+      return {
+        ...item,
+        title: item.title || prod?.prod_desc || prod?.title,
+        price: item.price || prod?.prod_unit_price || prod?.price,
+        image_url: item.image_url || prod?.image_url || prod?.image,
+      };
+    });
+  };
 
   const fetchOrders = async (userId, silent = false) => {
     if (!userId) return;
@@ -97,10 +100,17 @@ export default function MyOrders() {
     try {
       const res = await fetch(`${ordersUrl}/user/${userId}`);
       const text = await res.text();
-      const newOrders = JSON.parse(text);
-      setOrders(Array.isArray(newOrders) ? newOrders : []);
+      let newOrders = JSON.parse(text);
+      if (!Array.isArray(newOrders)) newOrders = [];
 
-      // 🔔 Notify on status change
+      // Merge images from products
+      newOrders.forEach((order) => {
+        order.items = mergeOrderWithProducts(order.items || []);
+      });
+
+      setOrders(newOrders);
+
+      // Notify on status change
       for (const order of newOrders) {
         const prevStatus = previousOrdersRef.current[order._id];
         if (prevStatus && prevStatus !== order.status) {
@@ -172,9 +182,37 @@ export default function MyOrders() {
   };
 
   const getSafeImage = (item) =>
-    item.image || item.image_url
-      ? { uri: item.image || item.image_url }
+    item.image_url
+      ? { uri: item.image_url }
+      : item.image
+      ? { uri: item.image }
       : require("../assets/images/1.jpg");
+
+  // 🔹 Load user and initial data
+  useEffect(() => {
+    const loadUserAndData = async () => {
+      const userData = await AsyncStorage.getItem("user");
+      if (!userData) {
+        Alert.alert("Error", "No user found. Please log in again.");
+        return;
+      }
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+
+      await fetchProducts(); // fetch products first
+      fetchOrders(parsedUser.id); // then fetch orders
+    };
+    loadUserAndData();
+  }, []);
+
+  // 🔹 Polling for real-time updates
+  useEffect(() => {
+    if (!user || products.length === 0) return;
+    const interval = setInterval(() => {
+      fetchOrders(user.id, true);
+    }, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [user, products]);
 
   if (loading && !refreshing) {
     return (
@@ -189,7 +227,6 @@ export default function MyOrders() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      {/* 🔹 Header */}
       <View
         style={[
           styles.headerContainer,
@@ -212,7 +249,6 @@ export default function MyOrders() {
         <View style={{ width: 34 }} />
       </View>
 
-      {/* 🔹 Orders List */}
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         style={[styles.container, { backgroundColor: theme.bg }]}
@@ -278,14 +314,9 @@ export default function MyOrders() {
 
                 <TouchableOpacity
                   onPress={() => setExpanded(isExpanded ? null : orderId)}
-                  style={[
-                    styles.expandButton,
-                    { backgroundColor: theme.expandBackground },
-                  ]}
+                  style={[styles.expandButton, { backgroundColor: theme.expandBackground }]}
                 >
-                  <Text
-                    style={[styles.expandButtonText, { color: theme.primary }]}
-                  >
+                  <Text style={[styles.expandButtonText, { color: theme.primary }]}>
                     {isExpanded ? "Hide Items ▲" : "View Items ▼"}
                   </Text>
                 </TouchableOpacity>
@@ -294,10 +325,7 @@ export default function MyOrders() {
                   <View
                     style={[
                       styles.itemsContainer,
-                      {
-                        backgroundColor: theme.itemsBackground,
-                        borderColor: theme.border,
-                      },
+                      { backgroundColor: theme.itemsBackground, borderColor: theme.border },
                     ]}
                   >
                     {order.items?.map((item, idx) => (
@@ -305,35 +333,21 @@ export default function MyOrders() {
                         key={idx}
                         style={[
                           styles.itemRow,
-                          idx === order.items.length - 1 && {
-                            borderBottomWidth: 0,
-                          },
+                          idx === order.items.length - 1 && { borderBottomWidth: 0 },
                         ]}
                       >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            flex: 1,
-                          }}
-                        >
+                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
                           <Image
                             source={getSafeImage(item)}
                             style={styles.itemImage}
                             resizeMode="cover"
                           />
                           <View style={{ marginLeft: 10, flex: 1 }}>
-                            <Text
-                              style={[
-                                styles.itemTitle,
-                                { color: theme.textPrimary },
-                              ]}
-                            >
+                            <Text style={[styles.itemTitle, { color: theme.textPrimary }]}>
                               {item.title || item.name || item.prod_desc}
                             </Text>
                             <Text style={{ color: theme.textSecondary }}>
-                              ₱{item.price || item.prod_unit_price} ×{" "}
-                              {item.quantity || item.Quantity || 1}
+                              ₱{item.price} × {item.quantity || 1}
                             </Text>
                           </View>
                         </View>
@@ -362,90 +376,26 @@ export default function MyOrders() {
 }
 
 const styles = StyleSheet.create({
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 50,
-    paddingBottom: 14,
-    paddingHorizontal: 18,
-    borderBottomWidth: 0.5,
-    borderColor: "rgba(150,150,150,0.2)",
-  },
+  container: { flex: 1, padding: 16 },
+  headerContainer: { flexDirection: "row", alignItems: "center", paddingTop: 50, paddingBottom: 14, paddingHorizontal: 18, borderBottomWidth: 0.5 },
   backButton: { marginRight: 10 },
   header: { fontSize: 22, fontWeight: "700", letterSpacing: 0.3 },
-  container: { flex: 1, padding: 16 },
-  noOrdersText: {
-    textAlign: "center",
-    marginTop: 120,
-    fontSize: 16,
-    opacity: 0.6,
-  },
-  orderCard: {
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 18,
-    borderWidth: 0.5,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  orderHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
+  noOrdersText: { textAlign: "center", marginTop: 120, fontSize: 16, opacity: 0.6 },
+  orderCard: { borderRadius: 20, padding: 16, marginBottom: 18, borderWidth: 0.5, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 8 } },
+  orderHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   orderId: { fontWeight: "700", fontSize: 17, letterSpacing: 0.3 },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 50,
-    overflow: "hidden",
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "capitalize",
-  },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 50, overflow: "hidden", fontSize: 13, fontWeight: "600", textTransform: "capitalize" },
   orderSummary: { marginBottom: 10 },
   orderTotal: { fontWeight: "700", fontSize: 16 },
   orderDate: { fontSize: 13, opacity: 0.7 },
-  expandButton: {
-    padding: 10,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 10,
-  },
+  expandButton: { padding: 10, borderRadius: 10, alignItems: "center", marginTop: 10 },
   expandButtonText: { fontWeight: "600", fontSize: 14 },
-  itemsContainer: {
-    marginTop: 10,
-    borderWidth: 0.6,
-    borderRadius: 12,
-    padding: 10,
-  },
-  itemRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    borderBottomWidth: 0.5,
-  },
+  itemsContainer: { marginTop: 10, borderWidth: 0.6, borderRadius: 12, padding: 10 },
+  itemRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 0.5 },
   itemImage: { width: 50, height: 50, borderRadius: 8 },
   itemTitle: { fontSize: 15, fontWeight: "600" },
-  cancelButton: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    backgroundColor: "#FF3B30",
-  },
-  cancelButtonText: {
-    fontWeight: "700",
-    color: "#fff",
-    fontSize: 15,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  cancelButton: { marginTop: 12, padding: 12, borderRadius: 12, alignItems: "center", backgroundColor: "#FF3B30" },
+  cancelButtonText: { fontWeight: "700", color: "#fff", fontSize: 15 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 10, opacity: 0.7 },
 });

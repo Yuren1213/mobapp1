@@ -15,6 +15,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemeContext } from "../contexts/ThemeContext";
 
+const BACKEND_URL = "https://posbackend-1-o9uk.onrender.com/uploads/";
+
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
@@ -25,14 +27,18 @@ const Cart = () => {
   useFocusEffect(
     useCallback(() => {
       const loadCart = async () => {
-        const storedCart = await AsyncStorage.getItem("cart");
-        if (storedCart) {
-          const parsedCart = JSON.parse(storedCart);
-          setCartItems(parsedCart);
-          setSelectedItems(new Array(parsedCart.length).fill(false));
-        } else {
-          setCartItems([]);
-          setSelectedItems([]);
+        try {
+          const storedCart = await AsyncStorage.getItem("cart");
+          if (storedCart) {
+            const parsedCart = JSON.parse(storedCart);
+            setCartItems(parsedCart);
+            setSelectedItems(new Array(parsedCart.length).fill(false));
+          } else {
+            setCartItems([]);
+            setSelectedItems([]);
+          }
+        } catch (err) {
+          console.error("Error loading cart:", err);
         }
       };
       loadCart();
@@ -41,23 +47,31 @@ const Cart = () => {
 
   // Update quantity (increase/decrease)
   const updateQuantity = async (index, change) => {
-    const updatedCart = [...cartItems];
-    updatedCart[index].quantity += change;
-    if (updatedCart[index].quantity < 1) updatedCart[index].quantity = 1;
-    setCartItems(updatedCart);
-    await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
+    try {
+      const updatedCart = [...cartItems];
+      updatedCart[index].quantity += change;
+      if (updatedCart[index].quantity < 1) updatedCart[index].quantity = 1;
+      setCartItems(updatedCart);
+      await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
+    } catch (err) {
+      console.error("Error updating quantity:", err);
+    }
   };
 
   // Remove a specific item
   const removeItem = async (index) => {
-    const updatedCart = [...cartItems];
-    updatedCart.splice(index, 1);
-    const updatedSelected = [...selectedItems];
-    updatedSelected.splice(index, 1);
-    setCartItems(updatedCart);
-    setSelectedItems(updatedSelected);
-    await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
-    Alert.alert("Removed", "Item removed from cart");
+    try {
+      const updatedCart = [...cartItems];
+      updatedCart.splice(index, 1);
+      const updatedSelected = [...selectedItems];
+      updatedSelected.splice(index, 1);
+      setCartItems(updatedCart);
+      setSelectedItems(updatedSelected);
+      await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
+      Alert.alert("Removed", "Item removed from cart");
+    } catch (err) {
+      console.error("Error removing item:", err);
+    }
   };
 
   // Select/unselect one item
@@ -88,26 +102,35 @@ const Cart = () => {
 
   // Proceed to Checkout Screen
   const handleCheckout = async () => {
-    if (!anySelected) return;
+    try {
+      if (!anySelected) {
+        Alert.alert("No Items Selected", "Please select at least one item.");
+        return;
+      }
 
-    const storedUser = await AsyncStorage.getItem("user");
-    if (!storedUser || JSON.parse(storedUser)._id === null) {
-      Alert.alert("You must be logged in", "Please log in to place an order.");
-      return;
+      const storedUser = await AsyncStorage.getItem("user");
+      const user = storedUser ? JSON.parse(storedUser) : null;
+
+      if (!user || !user._id) {
+        Alert.alert("Login Required", "Please log in to place an order.");
+        return;
+      }
+
+      const itemsToBuy = cartItems.filter((_, index) => selectedItems[index]);
+      if (itemsToBuy.length === 0) {
+        Alert.alert("No Items Selected", "Please select at least one item.");
+        return;
+      }
+
+      navigation.navigate("Checkoutlist", {
+        items: itemsToBuy,
+        subtotal,
+        shippingFee,
+        total: subtotal + shippingFee,
+      });
+    } catch (err) {
+      console.error("Checkout error:", err);
     }
-
-    const itemsToBuy = cartItems.filter((_, index) => selectedItems[index]);
-    if (itemsToBuy.length === 0) {
-      Alert.alert("No Items Selected", "Please select at least one item.");
-      return;
-    }
-
-    navigation.navigate("Checkoutlist", {
-      items: itemsToBuy,
-      subtotal,
-      shippingFee,
-      total: subtotal + shippingFee,
-    });
   };
 
   const theme = {
@@ -124,6 +147,7 @@ const Cart = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      {/* Header */}
       <SafeAreaView
         edges={["top"]}
         style={[
@@ -140,6 +164,7 @@ const Cart = () => {
         <Text style={[styles.headerTitle, { color: theme.text }]}>My Cart</Text>
       </SafeAreaView>
 
+      {/* Cart items */}
       <ScrollView contentContainerStyle={{ paddingBottom: 150 }}>
         {cartItems.length === 0 ? (
           <Text style={[styles.emptyText, { color: theme.text }]}>
@@ -174,8 +199,9 @@ const Cart = () => {
                 source={{
                   uri:
                     item.image_url ||
-                    item.image ||
-                    "https://via.placeholder.com/100x80.png?text=No+Image",
+                    (item.image
+                      ? `${BACKEND_URL}${item.image}`
+                      : "https://via.placeholder.com/100x80.png?text=No+Image"),
                 }}
                 style={styles.image}
               />
@@ -211,6 +237,7 @@ const Cart = () => {
         )}
       </ScrollView>
 
+      {/* Footer */}
       <View
         style={[
           styles.footer,

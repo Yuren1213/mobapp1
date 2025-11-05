@@ -8,9 +8,9 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
-  Platform,
   ActivityIndicator,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ENDPOINTS } from "../config";
@@ -19,12 +19,24 @@ export default function Login() {
   const navigation = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ✅ Function to check password strength
+  const isStrongPassword = (password) => {
+    const regex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+    return regex.test(password);
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
       setError("Please fill in both fields.");
+      return;
+    }
+
+    if (!isStrongPassword(password)) {
+      setError("Password must be at least 6 characters long and include letters and numbers.");
       return;
     }
 
@@ -42,6 +54,7 @@ export default function Login() {
 
       if (response.ok && data.user) {
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
+        await AsyncStorage.removeItem("guest");
         Alert.alert("Welcome!", "Login successful 🍽️");
         navigation.replace("Home");
       } else {
@@ -55,8 +68,15 @@ export default function Login() {
     }
   };
 
-  const continueAsGuest = () => {
-    navigation.replace("Home");
+  const continueAsGuest = async () => {
+    try {
+      await AsyncStorage.setItem("guest", "true");
+      await AsyncStorage.removeItem("user");
+      navigation.replace("Home");
+    } catch (err) {
+      console.error("Guest mode error:", err);
+      Alert.alert("Error", "Failed to enter guest mode.");
+    }
   };
 
   return (
@@ -82,14 +102,28 @@ export default function Login() {
               autoCapitalize="none"
             />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#aaa"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            {/* Password field with lock/unlock icon */}
+            <View style={styles.passwordBox}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Password"
+                placeholderTextColor="#aaa"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons
+                  name={showPassword ? "lock-open" : "lock-closed"}
+                  size={22}
+                  color="#888"
+                />
+              </TouchableOpacity>
+            </View>
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -179,7 +213,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   input: {
-    width: "100%",
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#eee",
@@ -192,6 +225,28 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 2,
+  },
+  passwordBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 15,
+    backgroundColor: "#fff",
+    marginBottom: 12,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    fontSize: 15,
+  },
+  eyeIcon: {
+    paddingHorizontal: 12,
   },
   errorText: {
     color: "#ff4d4d",
@@ -232,7 +287,7 @@ const styles = StyleSheet.create({
   },
   guestBtn: {
     marginTop: 25,
-    backgroundColor: "#f97377ff",
+    backgroundColor: "#f97377",
     paddingVertical: 12,
     borderRadius: 20,
     alignItems: "center",

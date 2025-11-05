@@ -15,7 +15,26 @@ import { API_URL } from "../config";
 const Landing = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { food } = route.params || {};
+  const { food: routeFood } = route.params || {};
+
+  // ✅ Default fallback product data
+  const defaultFood = {
+    _id: "690870d26516a34c956a9d72",
+    prod_code: "kupal",
+    prod_desc: "kupal",
+    prod_category: "68faae531a11a7335c9b96cf",
+    prod_unit_price: 123,
+    prod_reorder_level: 12,
+    product_image: {
+      uri:
+        "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMU…",
+    },
+    product_desc: "Bento",
+    prod_desc_extra: "kupalkaba",
+  };
+
+  // Use passed product or default
+  const food = routeFood || defaultFood;
 
   const [quantity, setQuantity] = useState(1);
   const [cartCount, setCartCount] = useState(0);
@@ -38,27 +57,26 @@ const Landing = () => {
     }, [])
   );
 
-  if (!food) {
-    return (
-      <View style={styles.container}>
-        <Text>No item selected</Text>
-      </View>
-    );
-  }
-
   // 🖼 Handle image
   const imageSource =
     food.image && typeof food.image !== "string"
       ? food.image
       : food.image_url
       ? { uri: food.image_url }
+      : food.product_image && food.product_image.uri
+      ? { uri: food.product_image.uri }
       : require("../assets/images/1.jpg");
 
   const foodName = food.title || food.prod_desc || "Unnamed Product";
-  const foodPrice = food.price || food.prod_unit_price || 0;
+  const foodPrice = parseFloat(food.price || food.prod_unit_price || 0);
   const totalPrice = foodPrice * quantity;
 
-  // 🛒 Add to cart (real-time fix)
+  // ✅ Determine if item is a Party Tray (based on product_desc)
+  const descText =
+    (food.product_desc || food.prod_desc || "").toLowerCase().trim();
+  const isPartyTray = descText.includes("party tray");
+
+  // 🛒 Add to cart
   const addToCart = async () => {
     try {
       const storedUser = await AsyncStorage.getItem("user");
@@ -72,7 +90,6 @@ const Landing = () => {
       const storedCart = await AsyncStorage.getItem("cart");
       let cart = storedCart ? JSON.parse(storedCart) : [];
 
-      // Check if item already exists
       const existingIndex = cart.findIndex(
         (item) => item._id === food._id || item.id === food.id
       );
@@ -86,17 +103,14 @@ const Landing = () => {
           title: foodName,
           price: foodPrice,
           image_url: food.image_url,
+          unitLabel: isPartyTray ? "pax" : "pcs",
         });
       }
 
-      // ✅ Save updated cart to storage
       await AsyncStorage.setItem("cart", JSON.stringify(cart));
-
-      // ✅ Update local states immediately (real-time update)
       setCartItems(cart);
       setCartCount(cart.length);
 
-      // Optional: sync with backend
       if (user._id) {
         await fetch(`${API_URL}/cart/${user._id}`, {
           method: "PUT",
@@ -105,7 +119,12 @@ const Landing = () => {
         });
       }
 
-      Alert.alert("Added to Cart", `${foodName} added successfully!`);
+      Alert.alert(
+        "Added to Cart",
+        `${foodName} added successfully (${quantity} ${
+          isPartyTray ? "pax" : "pcs"
+        })!`
+      );
     } catch (error) {
       console.error("Error adding to cart:", error);
       Alert.alert("Error", "Failed to add item to cart.");
@@ -115,7 +134,7 @@ const Landing = () => {
   // ⚡ Go to Checkout
   const orderNow = () => {
     navigation.navigate("Checkoutlist", {
-      items: [{ ...food, quantity }],
+      items: [{ ...food, quantity, unitLabel: isPartyTray ? "pax" : "pcs" }],
       subtotal: totalPrice,
       shippingFee: 50,
       total: totalPrice + 50,
@@ -151,13 +170,17 @@ const Landing = () => {
       {/* Product Info */}
       <Text style={styles.foodTitle}>{foodName}</Text>
       <Text style={styles.foodPrice}>₱{foodPrice}</Text>
+      <Text style={styles.extraText}>{food.prod_desc_extra}</Text>
 
       <View style={styles.row}>
         <Ionicons name="time-outline" size={16} color="gray" />
         <Text style={styles.timeText}>20–30 mins</Text>
       </View>
 
-      <Text style={styles.servingLabel}>Single Servings</Text>
+      {/* Dynamic Label */}
+      <Text style={styles.servingLabel}>
+        {isPartyTray ? "Party Tray (Per 1 pax Good for 8 to 10 Peson)" : "Single Servings"}
+      </Text>
       <View style={styles.separator} />
 
       {/* Quantity Controls */}
@@ -169,7 +192,9 @@ const Landing = () => {
           <Text style={styles.qtyText}>-</Text>
         </TouchableOpacity>
 
-        <Text style={styles.qtyNumber}>{quantity}</Text>
+        <Text style={styles.qtyNumber}>
+          {quantity} {isPartyTray ? "pax" : "pcs"}
+        </Text>
 
         <TouchableOpacity
           style={styles.qtyButton}
@@ -226,6 +251,7 @@ const styles = StyleSheet.create({
   foodImage: { width: "100%", height: 220, borderRadius: 12, marginBottom: 15 },
   foodTitle: { fontSize: 22, fontWeight: "bold", marginBottom: 5 },
   foodPrice: { fontSize: 18, color: "gray", marginBottom: 10 },
+  extraText: { fontSize: 14, color: "#333", marginBottom: 8 },
   row: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   timeText: { marginLeft: 4, color: "gray" },
   servingLabel: { fontSize: 14, color: "black", marginTop: 8 },
