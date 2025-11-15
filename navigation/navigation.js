@@ -21,6 +21,7 @@ import Payment from "../screens/Payment";
 import ProductImageScreen from "../screens/ProductImageScreen";
 import Register from "../screens/register";
 import Settings from "../screens/Settings";
+import Gamescreen from "../screens/Gamescreen"; 
 
 
 const Stack = createNativeStackNavigator();
@@ -51,8 +52,8 @@ export default function Navigation() {
           <Stack.Screen name="Forgotpassword" component={Forgotpassword} />
           <Stack.Screen name="ProductImage" component={ProductImageScreen} />
           <Stack.Screen name="Notifications" component={Notifications} />
-          <Stack.Screen name="ConnectionTestScreen" component={ConnectionTestScreen} />
-          
+          <Stack.Screen name="ConnectionTestScreen" component={ConnectionTestScreen} />          
+          <Stack.Screen name="Gamescreen" component={Gamescreen} />
         </Stack.Navigator>
 
       </NavigationContainer>

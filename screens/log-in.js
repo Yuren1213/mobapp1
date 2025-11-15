@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Alert,
   Image,
@@ -9,6 +9,7 @@ import {
   View,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -23,6 +24,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const passwordRef = useRef(null);
+
   // ✅ Function to check password strength
   const isStrongPassword = (password) => {
     const regex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
@@ -34,6 +37,7 @@ export default function Login() {
       setError("Please fill in both fields.");
       return;
     }
+
 
     if (!isStrongPassword(password)) {
       setError("Password must be at least 6 characters long and include letters and numbers.");
@@ -68,6 +72,8 @@ export default function Login() {
     }
   };
 
+
+
   const continueAsGuest = async () => {
     try {
       await AsyncStorage.setItem("guest", "true");
@@ -79,16 +85,31 @@ export default function Login() {
     }
   };
 
+
+
+  // Toggle and keep focus on password input (fixes Android rendering quirk)
+  const toggleShowPassword = () => {
+    setShowPassword((prev) => {
+      const next = !prev;
+      // small delay to ensure re-render then focus
+      setTimeout(() => {
+        passwordRef.current?.focus();
+      }, 50);
+      return next;
+    });
+  };
+
   return (
     <View style={styles.background}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <Image
             source={require("../assets/images/cantinalogo.jpg")}
             style={styles.logo}
           />
 
-          <Text style={styles.title}>Welcome Back 👋</Text>
+
+          <Text style={styles.title}>Welcome👋</Text>
           <Text style={styles.subtitle}>Log in to continue your cravings</Text>
 
           <View style={styles.form}>
@@ -100,11 +121,16 @@ export default function Login() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="emailAddress"
+              returnKeyType="next"
+              underlineColorAndroid="transparent"
             />
 
             {/* Password field with lock/unlock icon */}
             <View style={styles.passwordBox}>
               <TextInput
+                ref={passwordRef}
                 style={styles.passwordInput}
                 placeholder="Password"
                 placeholderTextColor="#aaa"
@@ -112,10 +138,18 @@ export default function Login() {
                 value={password}
                 onChangeText={setPassword}
                 autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="password"
+                importantForAutofill="no"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+                underlineColorAndroid="transparent"
+                selectionColor="#ff3b3b"
               />
               <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
+                onPress={toggleShowPassword}
                 style={styles.eyeIcon}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons
                   name={showPassword ? "lock-open" : "lock-closed"}
@@ -225,6 +259,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 2,
+    color: "#000",
   },
   passwordBox: {
     flexDirection: "row",
@@ -244,6 +279,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     fontSize: 15,
+    color: "#000", // ensure visibility on all devices
   },
   eyeIcon: {
     paddingHorizontal: 12,

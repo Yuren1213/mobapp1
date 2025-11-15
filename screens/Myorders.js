@@ -16,7 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import { ThemeContext } from "../contexts/ThemeContext";
 import { ENDPOINTS, API_URL } from "../config"; // Use your config
 
-const POLL_INTERVAL = 3000;
+const POLL_INTERVAL = 1500;
 
 const blackTheme = {
   bg: "#000000",

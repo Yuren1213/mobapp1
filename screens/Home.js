@@ -1,18 +1,24 @@
-import { FontAwesome5, Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import {
+  FontAwesome5,
+  Ionicons,
+  MaterialCommunityIcons,
+  MaterialIcons
+} from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
   Dimensions,
   Image,
-  ScrollView,
+  ScrollView, 
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFavorites } from "../FavoritesContext";
@@ -21,11 +27,51 @@ import { ThemeContext } from "../contexts/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
-const bestSellers = [
-  { id: 5, title: "Crispy kare-kare", price: 129, image: require("../assets/images/5.jpg") },
-  { id: 2, title: "Sangyup Nori Bites", price: 199, image: require("../assets/images/2.jpg") },
-  { id: 8, title: "Cordon Bleu", price: 139, image: require("../assets/images/11.jpg") },
-];
+// Skeleton loader component
+const SkeletonCard = ({ width = 180, height = 150, style }) => {
+  const shimmerAnim = useRef(new Animated.Value(-1)).current;
+
+  Animated.loop(
+    Animated.timing(shimmerAnim, {
+      toValue: 1,
+      duration: 1200,
+      useNativeDriver: true,
+    })
+  ).start();
+
+  const translateX = shimmerAnim.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [-width, width],
+  });
+
+  return (
+    <View
+      style={[
+        {
+          width,
+          height,
+          borderRadius: 12,
+          backgroundColor: "#e0e0e0",
+          overflow: "hidden",
+          marginBottom: 15,
+        },
+        style,
+      ]}
+    >
+      <Animated.View
+        style={{
+          width: "50%",
+          height: "100%",
+          backgroundColor: "#f0f0f0",
+          position: "absolute",
+          left: 0,
+          top: 0,
+          transform: [{ translateX }],
+        }}
+      />
+    </View>
+  );
+};
 
 export default function Home() {
   const navigation = useNavigation();
@@ -37,11 +83,17 @@ export default function Home() {
   const [profileImage, setProfileImage] = useState(null);
   const [cartCount, setCartCount] = useState(0);
   const [products, setProducts] = useState([]);
+  const [bestSellers, setBestSellers] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const slideAnim = useState(new Animated.Value(-width))[0];
   const [guestMode, setGuestMode] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingBestSellers, setLoadingBestSellers] = useState(true);
 
-  // 🔹 Load stored user, image, cart, and guest flag
+  const autoRefreshInterval = useRef(null);
+
+  // Load user data
   const loadUserData = async () => {
     try {
       const storedUser = await AsyncStorage.getItem("user");
@@ -64,31 +116,60 @@ export default function Home() {
     }
   };
 
-  // 🔹 Fetch all products
-  const fetchProducts = async () => {
+  // Fetch products
+  const fetchProducts = async (showLoader = false) => {
     try {
+      if (showLoader) {
+        setLoadingProducts(true);
+        setLoadingBestSellers(true);
+      }
+
       const res = await fetch(`${API_URL}/Product/all`);
       const data = await res.json();
-      if (data.success) setProducts(data.products);
-      else console.warn("Failed to load products:", data.message);
+      if (data.success) {
+        setProducts(data.products);
+
+        const bestSellerItems = data.products
+          .filter(p => p.is_bestseller)
+          .sort((a, b) => {
+            if (a.prod_qty === 0 && b.prod_qty > 0) return 1;
+            if (a.prod_qty > 0 && b.prod_qty === 0) return -1;
+            return a.prod_unit_price - b.prod_unit_price;
+          });
+
+        setBestSellers(bestSellerItems);
+      } else {
+        console.warn("Failed to load products:", data.message);
+      }
     } catch (err) {
       console.error("Error fetching products:", err);
+    } finally {
+      setLoadingProducts(false);
+      setLoadingBestSellers(false);
     }
   };
 
+  // Pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchProducts(true);
+    setRefreshing(false);
+  }, []);
+
+  // Auto-refresh every 1.5 seconds without showing loader
   useEffect(() => {
-    loadUserData();
-    fetchProducts();
+    fetchProducts(true);
+    autoRefreshInterval.current = setInterval(() => fetchProducts(false), 1500);
+    return () => clearInterval(autoRefreshInterval.current);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadUserData();
-      fetchProducts();
+      fetchProducts(true);
     }, [])
   );
 
-  // 🔹 Fetch cart count
   const fetchCartCount = async (userId) => {
     try {
       const res = await fetch(`${API_URL}/Cart/${userId}`);
@@ -102,39 +183,32 @@ export default function Home() {
     }
   };
 
-  // 🔹 Add to cart function (matches Render backend)
   const addToCart = async (item) => {
     try {
+      if (item.prod_qty === 0) {
+        Alert.alert("Out of Stock", "This item is currently unavailable.");
+        return;
+      }
       const storedUser = await AsyncStorage.getItem("user");
       if (!storedUser) {
         Alert.alert("Login Required", "Please log in to add items to cart.");
         return;
       }
-
       const user = JSON.parse(storedUser);
-
       const payload = {
         userId: user?._id?.$oid || user?._id || user?.id,
         productId: item?._id || item?.id,
         quantity: 1,
       };
-
-      console.log("🧾 Add to Cart Payload:", JSON.stringify(payload, null, 2));
-
       const res = await fetch(`${API_URL}/Cart/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
-      console.log("Add to Cart Response:", data);
-
       if (res.ok && data.success) {
         Alert.alert("Added to Cart", `${item.prod_desc || item.title} has been added!`);
         fetchCartCount(payload.userId);
-
-        // Store cart locally
         const storedCart = await AsyncStorage.getItem("cart");
         const cart = storedCart ? JSON.parse(storedCart) : [];
         cart.push(item);
@@ -154,7 +228,6 @@ export default function Home() {
     else addFavorite(item);
   };
 
-  // Drawer animation
   const toggleDrawer = () => {
     if (drawerOpen) {
       Animated.timing(slideAnim, { toValue: -width, duration: 300, useNativeDriver: false }).start(() =>
@@ -166,12 +239,10 @@ export default function Home() {
     }
   };
 
-  // 🔎 Filter products
   const filteredProducts = searchQuery
     ? products.filter((p) => p.prod_desc?.toLowerCase().includes(searchQuery.toLowerCase()))
     : products;
 
-  // 🌙 Theme setup
   const theme = {
     bg: darkMode ? "black" : "#ffe6e6",
     card: darkMode ? "#1f1f1f" : "#fff",
@@ -214,25 +285,54 @@ export default function Home() {
       </View>
 
       {/* MAIN CONTENT */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {!searchQuery && (
           <>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Cantina MNL’s Best Sellers</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginLeft: 15 }}>
-              {bestSellers.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[styles.bestSellerCard, { backgroundColor: theme.card }]}
-                  onPress={() => navigation.navigate("landing", { food: item })}
-                >
-                  <Image source={item.image} style={styles.bestSellerCardImage} />
-                  <Text style={[styles.bestSellerTitle, { color: theme.text }]}>{item.title}</Text>
-                  <Text style={[styles.bestSellerPrice, { color: theme.subText }]}>₱{item.price}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            {/* BEST SELLERS */}
+            {loadingBestSellers ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginLeft: 15 }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <SkeletonCard key={i} width={140} height={130} style={{ marginRight: 12 }} />
+                ))}
+              </ScrollView>
+            ) : (
+              <>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Cantina MNL’s Best Sellers</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginLeft: 15 }}>
+                  {bestSellers.map((item) => {
+                    const outOfStock = item.prod_qty === 0;
+                    return (
+                      <TouchableOpacity
+                        key={item._id}
+                        style={[styles.bestSellerCard, { backgroundColor: theme.card, opacity: outOfStock ? 0.6 : 1 }]}
+                        disabled={outOfStock}
+                        onPress={() => navigation.navigate("landing", { food: item })}
+                      >
+                        <View style={{ position: "relative" }}>
+                          <Image
+                            source={item.image_url ? { uri: item.image_url } : require("../assets/images/1.jpg")}
+                            style={styles.bestSellerCardImage}
+                          />
+                          {outOfStock && (
+                            <View style={styles.outOfStockOverlay}>
+                              <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={[styles.bestSellerTitle, { color: theme.text }]}>{item.prod_desc}</Text>
+                        <Text style={[styles.bestSellerPrice, { color: theme.subText }]}>₱{item.prod_unit_price}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
 
-            {/* Categories */}
+            {/* ALWAYS SHOW CATEGORIES */}
             <View style={styles.categories}>
               <TouchableOpacity style={styles.categoryButton} onPress={() => navigation.navigate("Bento")}>
                 <MaterialIcons name="restaurant-menu" size={22} color="deeppink" />
@@ -250,47 +350,60 @@ export default function Home() {
           </>
         )}
 
-        {/* Product Grid */}
+        {/* PRODUCT GRID */}
         <View style={styles.cardContainer}>
-          {filteredProducts.length > 0 ? (
-            filteredProducts.map((product) => (
-              <TouchableOpacity
-                key={product._id}
-                style={[styles.card, { backgroundColor: theme.card }]}
-                onPress={() => navigation.navigate("landing", { food: product })}
-              >
-                <Image
-                  source={
-                    product.image_url && typeof product.image_url === "string"
-                      ? { uri: product.image_url }
-                      : require("../assets/images/1.jpg")
-                  }
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                />
-                <Text style={[styles.cardTitle, { color: theme.text }]}>{product.prod_desc}</Text>
-                <Text style={[styles.cardPrice, { color: theme.subText }]}>₱{product.prod_unit_price}</Text>
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity onPress={() => toggleFavorite(product)}>
-                    <Ionicons
-                      name={isFavorite(product._id) ? "heart" : "heart-outline"}
-                      size={24}
-                      color="red"
-                    />
+          {loadingProducts && filteredProducts.length === 0
+            ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} width={180} height={180} />)
+            : filteredProducts.length > 0
+            ? filteredProducts.map((product) => {
+                const outOfStock = product.prod_qty === 0;
+                return (
+                  <TouchableOpacity
+                    key={product._id}
+                    style={[styles.card, { backgroundColor: theme.card, opacity: outOfStock ? 0.6 : 1 }]}
+                    disabled={outOfStock}
+                    onPress={() => !outOfStock && navigation.navigate("landing", { food: product })}
+                  >
+                    <View style={{ position: "relative" }}>
+                      <Image
+                        source={
+                          product.image_url && typeof product.image_url === "string"
+                            ? { uri: product.image_url }
+                            : require("../assets/images/1.jpg")
+                        }
+                        style={styles.cardImage}
+                        resizeMode="cover"
+                      />
+                      {outOfStock && (
+                        <View style={styles.outOfStockOverlay}>
+                          <Text style={styles.outOfStockText}>OUT OF STOCK</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={[styles.cardTitle, { color: theme.text }]}>{product.prod_desc}</Text>
+                    <Text style={[styles.cardPrice, { color: theme.subText }]}>₱{product.prod_unit_price}</Text>
+
+                    <View style={styles.cardFooter}>
+                      <TouchableOpacity onPress={() => toggleFavorite(product)} disabled={outOfStock}>
+                        <Ionicons
+                          name={isFavorite(product._id) ? "heart" : "heart-outline"}
+                          size={24}
+                          color="red"
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => addToCart(product)} disabled={outOfStock}>
+                        <Ionicons name="add-circle" size={28} color={theme.text} />
+                      </TouchableOpacity>
+                    </View>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => addToCart(product)}>
-                    <Ionicons name="add-circle" size={28} color={theme.text} />
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <Text style={{ color: theme.subText, textAlign: "center", marginTop: 50 }}>No products found.</Text>
-          )}
+                );
+              })
+            : <Text style={{ color: theme.subText, textAlign: "center", marginTop: 50 }}>No products found.</Text>}
         </View>
       </ScrollView>
 
-      {/* Bottom Nav */}
+      {/* BOTTOM NAV */}
       <View style={[styles.bottomNav, { backgroundColor: theme.navBg }]}>
         <TouchableOpacity onPress={() => navigation.navigate("Home")} style={styles.navItem}>
           <Ionicons name="home" size={25} color={theme.navText} />
@@ -319,7 +432,7 @@ export default function Home() {
 
       <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "black" }} />
 
-      {/* Drawer */}
+      {/* DRAWER */}
       {drawerOpen && <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={toggleDrawer} />}
       <Animated.View style={[styles.drawer, { left: slideAnim, backgroundColor: theme.card }]}>
         <Text style={[styles.drawerTitle, { color: theme.text }]}>Profile</Text>
@@ -342,7 +455,7 @@ export default function Home() {
           <Text style={[styles.drawerText, { color: theme.text }]}>My Orders</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
+        <TouchableOpacity    
           disabled={!user}
           style={[styles.drawerItem, !user && { opacity: 0.5 }]}
           onPress={() => user && navigation.navigate("Payment")}
@@ -391,15 +504,15 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: "bold", margin: 15 },
   cardContainer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-around", marginBottom: 10 },
   card: { width: 180, borderRadius: 12, padding: 10, marginBottom: 15, elevation: 5 },
-  cardImage: { width: "100%", height: 120, borderRadius: 10, marginBottom: 6 },
-  cardTitle: { fontSize: 14, fontWeight: "bold" },
-  cardPrice: { fontSize: 13, marginVertical: 4 },
-  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  bottomNav: { flexDirection: "row", justifyContent: "space-around", paddingVertical: 8, borderTopWidth: 1, borderColor: "#333" },
-  navItem: { alignItems: "center", justifyContent: "center" },
-  navLabel: { fontSize: 10, marginTop: 2 },
-  cartDot: { position: "absolute", top: -5, right: -10, backgroundColor: "red", borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 },
-  cartDotText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
+  cardImage: { width: "100%", height: 120, borderRadius: 8 },
+  cardTitle: { fontSize: 14, fontWeight: "bold", marginTop: 6 },
+  cardPrice: { fontSize: 13, marginTop: 2 },
+  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
+  bottomNav: { flexDirection: "row", justifyContent: "space-around", paddingVertical: 10, borderTopWidth: 0.5, borderTopColor: "#ccc" },
+  navItem: { alignItems: "center" },
+  navLabel: { fontSize: 12 },
+  cartDot: { position: "absolute", top: -4, right: -10, backgroundColor: "red", width: 18, height: 18, borderRadius: 9, justifyContent: "center", alignItems: "center" },
+  cartDotText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
   bestSellerCard: { width: 140, borderRadius: 12, marginRight: 12, padding: 8, elevation: 5 },
   bestSellerCardImage: { width: "100%", height: 90, borderRadius: 8, marginBottom: 6 },
   bestSellerTitle: { fontSize: 13, fontWeight: "600" },
@@ -412,4 +525,6 @@ const styles = StyleSheet.create({
   drawerTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 20 },
   drawerItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12 },
   drawerText: { marginLeft: 15, fontSize: 16 },
+  outOfStockOverlay: { position: "absolute", top: "35%", left: 0, right: 0, alignItems: "center", transform: [{ rotate: "-30deg" }] },
+  outOfStockText: { backgroundColor: "rgba(255, 0, 0, 0.8)", color: "#fff", fontWeight: "bold", paddingHorizontal: 20, paddingVertical: 5, borderRadius: 5, fontSize: 14, textAlign: "center" },
 });

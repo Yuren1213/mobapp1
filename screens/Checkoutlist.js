@@ -151,66 +151,85 @@ const Checkoutlist = () => {
   };
 
   // ✅ Place order
-  const placeOrder = async () => {
-    try {
-      const storedUser = await AsyncStorage.getItem("user");
-      if (!storedUser) throw new Error("You must be logged in");
-      const userData = JSON.parse(storedUser);
+ const placeOrder = async () => {
+  try {
+    const storedUser = await AsyncStorage.getItem("user");
+    if (!storedUser) throw new Error("You must be logged in");
+    const userData = JSON.parse(storedUser);
 
-      if (deliveryOption === "DELIVERY" && !validateDeliveryFields()) return;
+    if (deliveryOption === "DELIVERY" && !validateDeliveryFields()) return;
 
-      const orderData = {
-        UserId: userData.id || userData._id || userData.userId,
-        Name: userData.Name || userData.name,
-        Email: userData.Email || userData.email,
-        Items: items.map((i) => ({
-          ProductId: i._id,
-          Title: i.title || i.prod_desc || i.bento_desc,
-          Price: i.price || i.prod_unit_price || i.bento_price,
-          Quantity: i.quantity,
-        })),
-        Subtotal: subtotal,
-        ShippingFee: shippingFee,
-        Total: total,
-        DeliveryOption: deliveryOption,
-        PaymentMethod: paymentMethod,
-        Barangay: formData.barangay,
-        City: formData.city,
-        Province: formData.province,
-        Blk: formData.blk,
-        Lot: formData.lot,
-        Zipcode: formData.zipcode,
-        ContactNumber: formData.contactNumber,
-        Note: note || "",
-        Status: "PENDING",
-      };
-
-      const res = await fetch(`${ENDPOINTS.AUTH.replace("/auth", "/orders")}`, {
+    // Deduct stock for each item
+    for (const item of items) {
+      const stockRes = await fetch(`${ENDPOINTS.AUTH.replace("/auth", "/product/order")}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify({
+          ProductId: item._id,
+          Quantity: item.quantity,
+        }),
       });
 
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        Alert.alert("Success", "Order placed successfully! Status: Pending");
-
-        const currentCart = JSON.parse(await AsyncStorage.getItem("cart")) || [];
-        const updatedCart = currentCart.filter(
-          (cartItem) => !items.some((orderedItem) => orderedItem._id === cartItem._id)
-        );
-        await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
-
-        navigation.navigate("Home");
-      } else {
-        Alert.alert("Error", data.message || "Failed to place order");
+      const stockData = await stockRes.json();
+      if (!stockRes.ok || !stockData.success) {
+        Alert.alert("Error", `Failed to update stock for ${item.prod_desc || item.title}: ${stockData.message}`);
+        return; // stop placing order if stock fails
       }
-    } catch (err) {
-      console.error(err);
-      Alert.alert("Error", err.message || "Something went wrong");
     }
-  };
+
+    // Now place order in your order database
+    const orderData = {
+      UserId: userData.id || userData._id || userData.userId,
+      Name: userData.Name || userData.name,
+      Email: userData.Email || userData.email,
+      Items: items.map((i) => ({
+        ProductId: i._id,
+        Title: i.title || i.prod_desc || i.bento_desc,
+        Price: i.price || i.prod_unit_price || i.bento_price,
+        Quantity: i.quantity,
+      })),
+      Subtotal: subtotal,
+      ShippingFee: shippingFee,
+      Total: total,
+      DeliveryOption: deliveryOption,
+      PaymentMethod: paymentMethod,
+      Barangay: formData.barangay,
+      City: formData.city,
+      Province: formData.province,
+      Blk: formData.blk,
+      Lot: formData.lot,
+      Zipcode: formData.zipcode,
+      ContactNumber: formData.contactNumber,
+      Note: note || "",
+      Status: "PENDING",
+    };
+
+    const res = await fetch(`${ENDPOINTS.AUTH.replace("/auth", "/orders")}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orderData),
+    });
+
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      Alert.alert("Success", "Order placed successfully! Status: Pending");
+
+      const currentCart = JSON.parse(await AsyncStorage.getItem("cart")) || [];
+      const updatedCart = currentCart.filter(
+        (cartItem) => !items.some((orderedItem) => orderedItem._id === cartItem._id)
+      );
+      await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
+
+      navigation.navigate("Home");
+    } else {
+      Alert.alert("Error", data.message || "Failed to place order");
+    }
+  } catch (err) {
+    console.error(err);
+    Alert.alert("Error", err.message || "Something went wrong");
+  }
+};
 
   const getSafeImage = (item) =>
     item.image || item.image_url
@@ -255,7 +274,7 @@ const Checkoutlist = () => {
 
         <View style={[styles.summaryBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={{ color: theme.text }}>Subtotal: ₱{formatCurrency(subtotal)}</Text>
-          <Text style={{ color: theme.text }}>Shipping: ₱{formatCurrency(shippingFee)}</Text>
+          <Text style={{ color: theme.text   }}>Shipping: ₱{formatCurrency(shippingFee)}</Text>
           <Text style={{ fontWeight: "bold", color: theme.text }}>Total: ₱{formatCurrency(total)}</Text>
         </View>
 

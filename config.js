@@ -1,9 +1,9 @@
-const PC_IP = "192.168.0.100";
+const PC_IP = "192.168.100.181";
 
 
 
 const RENDER_URL = "https://posbackend-1-o9uk.onrender.com";
-const RENDER_API_URL = `${RENDER_URL}/api`;
+const RENDER_API_URL = `${RENDER_URL}:/api`;
 
 
 export const API_URL = RENDER_API_URL; 

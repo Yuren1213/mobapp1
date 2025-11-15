@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Alert,
   Animated,
+  ActivityIndicator,
   ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
@@ -18,6 +19,7 @@ import {
 } from "react-native";
 import { ENDPOINTS } from "../config";
 
+
 export default function Register() {
   const navigation = useNavigation();
   const [name, setName] = useState("");
@@ -29,6 +31,9 @@ export default function Register() {
   // visibility toggles
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Loading state
+  const [loading, setLoading] = useState(false);
 
   // Animation
   const [scaleAnim] = useState(new Animated.Value(1));
@@ -61,7 +66,9 @@ export default function Register() {
     }
 
     if (!passwordRegex.test(password)) {
-      setError("Password must be at least 6 characters and include letters and numbers.");
+      setError(
+        "Password must be at least 6 characters and include letters and numbers."
+      );
       return;
     }
 
@@ -71,6 +78,7 @@ export default function Register() {
     }
 
     setError("");
+    setLoading(true); // ⬅️ Start loading
 
     try {
       const response = await fetch(`${ENDPOINTS.AUTH}/register`, {
@@ -90,6 +98,8 @@ export default function Register() {
     } catch (err) {
       console.error("Signup Error:", err);
       setError("Failed to connect to server. Please check your internet connection.");
+    } finally {
+      setLoading(false); // ⬅️ Stop loading
     }
   };
 
@@ -132,10 +142,9 @@ export default function Register() {
                 placeholderTextColor="#aaa"
               />
 
-              {/* Password box with lock icon (forces remount with key to avoid Android invisible text bug) */}
+              {/* Password box */}
               <View style={styles.passwordBox}>
                 <TextInput
-                  // key forces remount when showPassword toggles so Android renders correctly in prod builds
                   key={`pwd-${showPassword ? "v" : "h"}`}
                   style={styles.passwordInput}
                   placeholder="Password"
@@ -193,12 +202,17 @@ export default function Register() {
 
               <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
                 <TouchableOpacity
-                  style={styles.button}
+                  style={[styles.button, loading && { opacity: 0.7 }]} // ⬅️ opacity change
                   onPress={handleSignup}
                   onPressIn={handlePressIn}
                   onPressOut={handlePressOut}
+                  disabled={loading} // ⬅️ disable while loading
                 >
-                  <Text style={styles.buttonText}>Sign Up</Text>
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>Sign Up</Text>
+                  )}
                 </TouchableOpacity>
               </Animated.View>
 
@@ -214,16 +228,8 @@ export default function Register() {
 }
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  container: {
-    flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
+  background: { flex: 1, justifyContent: "center" },
+  container: { flexGrow: 1, justifyContent: "center", alignItems: "center", padding: 20 },
   card: {
     width: "100%",
     backgroundColor: "rgba(255,255,255,0.95)",
@@ -235,18 +241,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
     elevation: 6,
   },
-  header: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#ff4d4d",
-    textAlign: "center",
-  },
-  subHeader: {
-    fontSize: 14,
-    color: "#555",
-    textAlign: "center",
-    marginBottom: 18,
-  },
+  header: { fontSize: 28, fontWeight: "bold", color: "#ff4d4d", textAlign: "center" },
+  subHeader: { fontSize: 14, color: "#555", textAlign: "center", marginBottom: 18 },
   input: {
     width: "100%",
     backgroundColor: "#fff",
@@ -268,23 +264,9 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     paddingRight: 8,
   },
-  passwordInput: {
-    flex: 1,
-    paddingVertical: Platform.OS === "android" ? 12 : 14,
-    paddingHorizontal: 12,
-    fontSize: 15,
-    color: "#333",
-  },
-  iconBtn: {
-    padding: 8,
-  },
-  hintText: {
-    color: "#666",
-    fontSize: 12,
-    marginTop: -4,
-    marginBottom: 6,
-    marginLeft: 4,
-  },
+  passwordInput: { flex: 1, paddingVertical: Platform.OS === "android" ? 12 : 14, paddingHorizontal: 12, fontSize: 15, color: "#333" },
+  iconBtn: { padding: 8 },
+  hintText: { color: "#666", fontSize: 12, marginTop: -4, marginBottom: 6, marginLeft: 4 },
   button: {
     backgroundColor: "#ff4d4d",
     borderRadius: 12,
@@ -295,24 +277,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
   },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    textAlign: "center",
-    fontSize: 16,
-  },
-  errorText: {
-    color: "red",
-    fontSize: 13,
-    marginTop: 5,
-    marginBottom: 5,
-    textAlign: "center",
-  },
-  linkText: {
-    color: "#ff4d4d",
-    marginTop: 20,
-    fontSize: 15,
-    fontWeight: "600",
-    textAlign: "center",
-  },
+  buttonText: { color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 16 },
+  errorText: { color: "red", fontSize: 13, marginTop: 5, marginBottom: 5, textAlign: "center" },
+  linkText: { color: "#ff4d4d", marginTop: 20, fontSize: 15, fontWeight: "600", textAlign: "center" },
 });

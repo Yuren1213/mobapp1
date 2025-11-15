@@ -49,8 +49,15 @@ const Cart = () => {
   const updateQuantity = async (index, change) => {
     try {
       const updatedCart = [...cartItems];
-      updatedCart[index].quantity += change;
-      if (updatedCart[index].quantity < 1) updatedCart[index].quantity = 1;
+      const currentQty = updatedCart[index].quantity;
+      const maxQty = updatedCart[index].prod_qty || Infinity; // stock limit
+
+      let newQty = currentQty + change;
+      if (newQty < 1) newQty = 1;
+      if (newQty > maxQty) newQty = maxQty; // enforce stock limit
+
+      updatedCart[index].quantity = newQty;
+
       setCartItems(updatedCart);
       await AsyncStorage.setItem("cart", JSON.stringify(updatedCart));
     } catch (err) {
@@ -226,8 +233,13 @@ const Cart = () => {
                   {item.quantity}
                 </Text>
                 <TouchableOpacity
-                  style={[styles.qtyButton, styles.qtyButtonPlus]}
+                  style={[
+                    styles.qtyButton,
+                    styles.qtyButtonPlus,
+                    { opacity: item.quantity >= (item.prod_qty || Infinity) ? 0.5 : 1 },
+                  ]}
                   onPress={() => updateQuantity(index, 1)}
+                  disabled={item.quantity >= (item.prod_qty || Infinity)}
                 >
                   <Text style={[styles.qtyText, { color: theme.text }]}>+</Text>
                 </TouchableOpacity>
