@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { ThemeContext } from "../contexts/ThemeContext";
 import { ENDPOINTS, API_URL } from "../config"; // Use your config
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const POLL_INTERVAL = 1500;
 
@@ -56,6 +57,7 @@ export default function MyOrders() {
   const navigation = useNavigation();
   const { darkMode } = useContext(ThemeContext);
   const theme = darkMode ? blackTheme : lightTheme;
+  const insets = useSafeAreaInsets(); // Safe area for adaptive footer
 
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
@@ -68,7 +70,6 @@ export default function MyOrders() {
   const ordersUrl =
     ENDPOINTS?.ORDERS || ENDPOINTS?.AUTH?.replace("/auth", "/orders");
 
-  // 🔹 Fetch all products first
   const fetchProducts = async () => {
     try {
       const res = await fetch(`${API_URL}/Product/all`);
@@ -79,7 +80,6 @@ export default function MyOrders() {
     }
   };
 
-  // 🔹 Merge order items with products to get real images
   const mergeOrderWithProducts = (orderItems) => {
     return orderItems.map((item) => {
       const prod = products.find(
@@ -103,14 +103,12 @@ export default function MyOrders() {
       let newOrders = JSON.parse(text);
       if (!Array.isArray(newOrders)) newOrders = [];
 
-      // Merge images from products
       newOrders.forEach((order) => {
         order.items = mergeOrderWithProducts(order.items || []);
       });
 
       setOrders(newOrders);
 
-      // Notify on status change
       for (const order of newOrders) {
         const prevStatus = previousOrdersRef.current[order._id];
         if (prevStatus && prevStatus !== order.status) {
@@ -188,7 +186,6 @@ export default function MyOrders() {
       ? { uri: item.image }
       : require("../assets/images/1.jpg");
 
-  // 🔹 Load user and initial data
   useEffect(() => {
     const loadUserAndData = async () => {
       const userData = await AsyncStorage.getItem("user");
@@ -199,13 +196,12 @@ export default function MyOrders() {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
 
-      await fetchProducts(); // fetch products first
-      fetchOrders(parsedUser.id); // then fetch orders
+      await fetchProducts();
+      fetchOrders(parsedUser.id);
     };
     loadUserAndData();
   }, []);
 
-  // 🔹 Polling for real-time updates
   useEffect(() => {
     if (!user || products.length === 0) return;
     const interval = setInterval(() => {
@@ -227,6 +223,7 @@ export default function MyOrders() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      {/* Header */}
       <View
         style={[
           styles.headerContainer,
@@ -249,6 +246,7 @@ export default function MyOrders() {
         <View style={{ width: 34 }} />
       </View>
 
+      {/* Orders List */}
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         style={[styles.container, { backgroundColor: theme.bg }]}
@@ -314,9 +312,14 @@ export default function MyOrders() {
 
                 <TouchableOpacity
                   onPress={() => setExpanded(isExpanded ? null : orderId)}
-                  style={[styles.expandButton, { backgroundColor: theme.expandBackground }]}
+                  style={[
+                    styles.expandButton,
+                    { backgroundColor: theme.expandBackground },
+                  ]}
                 >
-                  <Text style={[styles.expandButtonText, { color: theme.primary }]}>
+                  <Text
+                    style={[styles.expandButtonText, { color: theme.primary }]}
+                  >
                     {isExpanded ? "Hide Items ▲" : "View Items ▼"}
                   </Text>
                 </TouchableOpacity>
@@ -325,7 +328,10 @@ export default function MyOrders() {
                   <View
                     style={[
                       styles.itemsContainer,
-                      { backgroundColor: theme.itemsBackground, borderColor: theme.border },
+                      {
+                        backgroundColor: theme.itemsBackground,
+                        borderColor: theme.border,
+                      },
                     ]}
                   >
                     {order.items?.map((item, idx) => (
@@ -336,14 +342,25 @@ export default function MyOrders() {
                           idx === order.items.length - 1 && { borderBottomWidth: 0 },
                         ]}
                       >
-                        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            flex: 1,
+                          }}
+                        >
                           <Image
                             source={getSafeImage(item)}
                             style={styles.itemImage}
                             resizeMode="cover"
                           />
                           <View style={{ marginLeft: 10, flex: 1 }}>
-                            <Text style={[styles.itemTitle, { color: theme.textPrimary }]}>
+                            <Text
+                              style={[
+                                styles.itemTitle,
+                                { color: theme.textPrimary },
+                              ]}
+                            >
                               {item.title || item.name || item.prod_desc}
                             </Text>
                             <Text style={{ color: theme.textSecondary }}>
@@ -361,9 +378,7 @@ export default function MyOrders() {
                     onPress={() => cancelOrder(orderId)}
                     style={[styles.cancelButton]}
                   >
-                    <Text style={[styles.cancelButtonText]}>
-                      Cancel Order
-                    </Text>
+                    <Text style={[styles.cancelButtonText]}>Cancel Order</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -371,17 +386,36 @@ export default function MyOrders() {
           })
         )}
       </ScrollView>
+
+      {/* Adaptive Black Footer */}
+      <View style={{ height: insets.bottom || 30, backgroundColor: "#000" }} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  headerContainer: { flexDirection: "row", alignItems: "center", paddingTop: 50, paddingBottom: 14, paddingHorizontal: 18, borderBottomWidth: 0.5 },
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingBottom: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 0.5,
+  },
   backButton: { marginRight: 10 },
   header: { fontSize: 22, fontWeight: "700", letterSpacing: 0.3 },
   noOrdersText: { textAlign: "center", marginTop: 120, fontSize: 16, opacity: 0.6 },
-  orderCard: { borderRadius: 20, padding: 16, marginBottom: 18, borderWidth: 0.5, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 8 } },
+  orderCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 18,
+    borderWidth: 0.5,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+  },
   orderHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   orderId: { fontWeight: "700", fontSize: 17, letterSpacing: 0.3 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 50, overflow: "hidden", fontSize: 13, fontWeight: "600", textTransform: "capitalize" },

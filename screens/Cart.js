@@ -25,36 +25,40 @@ const Cart = () => {
 
   // Load cart from AsyncStorage when screen focuses
   useFocusEffect(
-    useCallback(() => {
-      const loadCart = async () => {
-        try {
-          const storedCart = await AsyncStorage.getItem("cart");
-          if (storedCart) {
-            const parsedCart = JSON.parse(storedCart);
-            setCartItems(parsedCart);
-            setSelectedItems(new Array(parsedCart.length).fill(false));
-          } else {
-            setCartItems([]);
-            setSelectedItems([]);
-          }
-        } catch (err) {
-          console.error("Error loading cart:", err);
+  useCallback(() => {
+    const loadCart = async () => {
+      try {
+        const storedCart = await AsyncStorage.getItem("cart");
+        if (storedCart) {
+          const parsedCart = JSON.parse(storedCart).map(item => ({
+            ...item,
+            quantity: Number(item.quantity) || 1, // ✅ Ensure it's a number
+          }));
+          setCartItems(parsedCart);
+          setSelectedItems(new Array(parsedCart.length).fill(false));
+        } else {
+          setCartItems([]);
+          setSelectedItems([]);
         }
-      };
-      loadCart();
-    }, [])
-  );
+      } catch (err) {
+        console.error("Error loading cart:", err);
+      }
+    };
+    loadCart();
+  }, [])
+);
+
 
   // Update quantity (increase/decrease)
   const updateQuantity = async (index, change) => {
     try {
       const updatedCart = [...cartItems];
-      const currentQty = updatedCart[index].quantity;
-      const maxQty = updatedCart[index].prod_qty || Infinity; // stock limit
+      const currentQty = Number(updatedCart[index].quantity) || 1;
+      const maxQty = updatedCart[index].prod_qty || Infinity;
 
       let newQty = currentQty + change;
       if (newQty < 1) newQty = 1;
-      if (newQty > maxQty) newQty = maxQty; // enforce stock limit
+      if (newQty > maxQty) newQty = maxQty;
 
       updatedCart[index].quantity = newQty;
 
@@ -96,11 +100,8 @@ const Cart = () => {
 
   // Calculate subtotal for selected items only
   const subtotal = cartItems.reduce((sum, item, idx) => {
-    if (selectedItems[idx])
-      return (
-        sum +
-        (item.prod_unit_price || item.price || 0) * (item.quantity || 1)
-      );
+    const qty = Number(item.quantity) || 1; // ensure number
+    if (selectedItems[idx]) return sum + (item.prod_unit_price || item.price || 0) * qty;
     return sum;
   }, 0);
 
@@ -116,9 +117,20 @@ const Cart = () => {
       }
 
       const storedUser = await AsyncStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : null;
+      let user = null;
 
-      if (!user || !user._id) {
+      if (storedUser) {
+        try {
+          user = JSON.parse(storedUser);
+        } catch (e) {
+          console.error("Failed to parse user:", e);
+          user = null;
+        }
+      }
+
+      const userId = user?._id || user?.id || null;
+
+      if (!userId) {
         Alert.alert("Login Required", "Please log in to place an order.");
         return;
       }
@@ -157,15 +169,9 @@ const Cart = () => {
       {/* Header */}
       <SafeAreaView
         edges={["top"]}
-        style={[
-          styles.header,
-          { backgroundColor: theme.headerBg, borderColor: theme.border },
-        ]}
+        style={[styles.header, { backgroundColor: theme.headerBg, borderColor: theme.border }]}
       >
-        <TouchableOpacity
-          onPress={() => navigation.navigate("Home")}
-          style={styles.backBtn}
-        >
+        <TouchableOpacity onPress={() => navigation.navigate("Home")} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text }]}>My Cart</Text>
@@ -178,84 +184,69 @@ const Cart = () => {
             Your cart is empty
           </Text>
         ) : (
-          cartItems.map((item, index) => (
-            <View
-              key={index}
-              style={[
-                styles.item,
-                { backgroundColor: theme.card, borderColor: theme.border },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={() => removeItem(index)}
+          cartItems.map((item, index) => {
+            const qty = Number(item.quantity) || 1; // ensure number
+            return (
+              <View
+                key={index}
+                style={[styles.item, { backgroundColor: theme.card, borderColor: theme.border }]}
               >
-                <Text style={[styles.closeText, { color: theme.text }]}>×</Text>
-              </TouchableOpacity>
-
-              <Checkbox
-                value={selectedItems[index]}
-                onValueChange={() => toggleSelection(index)}
-                style={styles.checkbox}
-                color={
-                  selectedItems[index] ? theme.activeCheckbox : undefined
-                }
-              />
-
-              <Image
-                source={{
-                  uri:
-                    item.image_url ||
-                    (item.image
-                      ? `${BACKEND_URL}${item.image}`
-                      : "https://via.placeholder.com/100x80.png?text=No+Image"),
-                }}
-                style={styles.image}
-              />
-
-              <View style={styles.info}>
-                <Text style={[styles.title, { color: theme.text }]}>
-                  {item.prod_desc || item.title || "Unnamed Item"}
-                </Text>
-                <Text style={[styles.price, { color: theme.subText }]}>
-                  ₱{item.prod_unit_price || item.price || 0}
-                </Text>
-              </View>
-
-              <View style={styles.quantityContainer}>
-                <TouchableOpacity
-                  style={styles.qtyButton}
-                  onPress={() => updateQuantity(index, -1)}
-                >
-                  <Text style={[styles.qtyText, { color: theme.text }]}>-</Text>
+                <TouchableOpacity style={styles.closeBtn} onPress={() => removeItem(index)}>
+                  <Text style={[styles.closeText, { color: theme.text }]}>×</Text>
                 </TouchableOpacity>
-                <Text style={[styles.qtyNumber, { color: theme.text }]}>
-                  {item.quantity}
-                </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.qtyButton,
-                    styles.qtyButtonPlus,
-                    { opacity: item.quantity >= (item.prod_qty || Infinity) ? 0.5 : 1 },
-                  ]}
-                  onPress={() => updateQuantity(index, 1)}
-                  disabled={item.quantity >= (item.prod_qty || Infinity)}
-                >
-                  <Text style={[styles.qtyText, { color: theme.text }]}>+</Text>
-                </TouchableOpacity>
+
+                <Checkbox
+                  value={selectedItems[index]}
+                  onValueChange={() => toggleSelection(index)}
+                  style={styles.checkbox}
+                  color={selectedItems[index] ? theme.activeCheckbox : undefined}
+                />
+
+                <Image
+                  source={{
+                    uri:
+                      item.image_url ||
+                      (item.image
+                        ? `${BACKEND_URL}${item.image}`
+                        : "https://via.placeholder.com/100x80.png?text=No+Image"),
+                  }}
+                  style={styles.image}
+                />
+
+                <View style={styles.info}>
+                  <Text style={[styles.title, { color: theme.text }]}>
+                    {item.prod_desc || item.title || "Unnamed Item"}
+                  </Text>
+                  <Text style={[styles.price, { color: theme.subText }]}>
+                    ₱{item.prod_unit_price || item.price || 0}
+                  </Text>
+                </View>
+
+                <View style={styles.quantityContainer}>
+                  <TouchableOpacity style={styles.qtyButton} onPress={() => updateQuantity(index, -1)}>
+                    <Text style={[styles.qtyText, { color: theme.text }]}>-</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.qtyNumber, { color: theme.text }]}>{qty}</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.qtyButton,
+                      styles.qtyButtonPlus,
+                      { opacity: qty >= (item.prod_qty || Infinity) ? 0.5 : 1 },
+                    ]}
+                    onPress={() => updateQuantity(index, 1)}
+                    disabled={qty >= (item.prod_qty || Infinity)}
+                  >
+                    <Text style={[styles.qtyText, { color: theme.text }]}>+</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
 
       {/* Footer */}
-      <View
-        style={[
-          styles.footer,
-          { borderColor: theme.border, backgroundColor: theme.card },
-        ]}
-      >
+      <View style={[styles.footer, { borderColor: theme.border, backgroundColor: theme.card }]}>
         <View style={styles.selectAllContainer}>
           <Checkbox
             value={selectedItems.length > 0 && selectedItems.every((s) => s)}
@@ -268,31 +259,19 @@ const Cart = () => {
         <View style={styles.summaryContainer}>
           <Text style={[styles.subtotalText, { color: theme.text }]}>
             Subtotal:{" "}
-            <Text style={{ color: "red", fontWeight: "bold" }}>
-              ₱{subtotal.toFixed(2)}
-            </Text>
+            <Text style={{ color: "red", fontWeight: "bold" }}>₱{subtotal.toFixed(2)}</Text>
           </Text>
           <Text style={[styles.shippingText, { color: theme.subText }]}>
-            Shipping Fee:{" "}
-            <Text style={{ color: "red" }}>₱{shippingFee.toFixed(2)}</Text>
+            Shipping Fee: <Text style={{ color: "red" }}>₱{shippingFee.toFixed(2)}</Text>
           </Text>
         </View>
 
         <TouchableOpacity
-          style={[
-            styles.checkoutBtn,
-            {
-              backgroundColor: anySelected
-                ? theme.checkoutBtn
-                : theme.disabledBtn,
-            },
-          ]}
+          style={[styles.checkoutBtn, { backgroundColor: anySelected ? theme.checkoutBtn : theme.disabledBtn }]}
           onPress={handleCheckout}
           disabled={!anySelected}
         >
-          <Text style={styles.checkoutText}>
-            Check Out ({selectedItems.filter((s) => s).length})
-          </Text>
+          <Text style={styles.checkoutText}>Check Out ({selectedItems.filter((s) => s).length})</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -301,72 +280,23 @@ const Cart = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 12, borderBottomWidth: 1 },
   backBtn: { flexDirection: "row", alignItems: "center" },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginRight: 40,
-  },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 18, fontWeight: "bold", marginRight: 40 },
   emptyText: { fontSize: 16, textAlign: "center", marginTop: 20 },
-  item: {
-    position: "relative",
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginVertical: 5,
-    borderRadius: 10,
-    padding: 20,
-    borderWidth: 1,
-  },
+  item: { position: "relative", flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginVertical: 5, borderRadius: 10, padding: 20, borderWidth: 1 },
   image: { width: 100, height: 80, borderRadius: 8 },
   info: { flex: 1, marginLeft: 10 },
   title: { fontSize: 16, fontWeight: "bold" },
   price: { fontSize: 14, marginTop: 5 },
-  quantityContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 10,
-  },
-  qtyButton: {
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
+  quantityContainer: { flexDirection: "row", alignItems: "center", marginHorizontal: 10 },
+  qtyButton: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
   qtyText: { fontSize: 16 },
   qtyNumber: { fontSize: 16, marginHorizontal: 6 },
-  closeBtn: {
-    position: "absolute",
-    top: 5,
-    right: 9,
-    width: 24,
-    height: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  closeBtn: { position: "absolute", top: 5, right: 9, width: 24, height: 24, justifyContent: "center", alignItems: "center" },
   closeText: { fontSize: 20, fontWeight: "bold", lineHeight: 20 },
   checkbox: { marginRight: 10 },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderTopWidth: 1,
-    position: "absolute",
-    bottom: 45,
-    left: 0,
-    right: 0,
-  },
+  footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 10, borderTopWidth: 1, position: "absolute", bottom: 45, left: 0, right: 0 },
   selectAllContainer: { flexDirection: "row", alignItems: "center" },
   summaryContainer: { flex: 1, marginLeft: 10 },
   subtotalText: { fontSize: 14, fontWeight: "bold" },

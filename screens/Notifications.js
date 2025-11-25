@@ -16,7 +16,10 @@ import {
 } from "react-native";
 import { ThemeContext } from "../contexts/ThemeContext";
 
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
@@ -34,24 +37,73 @@ export default function Notifications() {
     border: darkMode ? "#2C2C2E" : "#E5E5E5",
   };
 
-  const [notifications, setNotifications] = useState([]);
+  const [fullList, setFullList] = useState([]);
+  const [visibleList, setVisibleList] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
     loadNotifications();
   }, []);
+
+  // 🔥 FIX: always extract real order number and apply to message
+  const formatNotificationText = (notif) => {
+    // Try to get order number from any field
+    const orderNumber =
+      notif.orderId ||
+      notif.order_id ||
+      notif.order ||
+      notif.id ||
+      null;
+
+    let finalMessage = notif.message || "";
+
+    // If order number exists → force insert into message
+    if (orderNumber) {
+      finalMessage = finalMessage.replace(/#undefined/gi, `#${orderNumber}`);
+      finalMessage = finalMessage.replace(/#null/gi, `#${orderNumber}`);
+
+      // If the message has no "#..." at all, add one
+      if (!finalMessage.includes(`#${orderNumber}`)) {
+        finalMessage = `Order #${orderNumber}: ${finalMessage}`;
+      }
+    }
+
+    return finalMessage.trim();
+  };
 
   const loadNotifications = async () => {
     try {
       setLoading(true);
       const stored = await AsyncStorage.getItem("notifications");
       const data = stored ? JSON.parse(stored) : [];
-      setNotifications(data);
+
+      // FIX: rebuild each message with real order number
+      const fixed = data.map((n) => ({
+        ...n,
+        message: formatNotificationText(n),
+      }));
+
+      setFullList(fixed);
+      setVisibleList(fixed.slice(0, PAGE_SIZE));
     } catch (err) {
       console.error("Error loading notifications:", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadMore = () => {
+    if (visibleList.length >= fullList.length) return;
+
+    const next = fullList.slice(
+      visibleList.length,
+      visibleList.length + PAGE_SIZE
+    );
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setVisibleList([...visibleList, ...next]);
   };
 
   const clearNotifications = async () => {
@@ -62,7 +114,8 @@ export default function Notifications() {
         onPress: async () => {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           await AsyncStorage.removeItem("notifications");
-          setNotifications([]);
+          setFullList([]);
+          setVisibleList([]);
         },
       },
     ]);
@@ -71,8 +124,14 @@ export default function Notifications() {
   const deleteNotification = async (id) => {
     try {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      const updated = notifications.filter((notif) => notif._id !== id);
-      setNotifications(updated);
+
+      const updated = fullList.filter((notif) => notif._id !== id);
+
+      setFullList(updated);
+      setVisibleList(
+        updated.slice(0, Math.max(visibleList.length - 1, PAGE_SIZE))
+      );
+
       await AsyncStorage.setItem("notifications", JSON.stringify(updated));
     } catch (err) {
       console.error("Error deleting notification:", err);
@@ -94,20 +153,24 @@ export default function Notifications() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* Header */}
       <View
         style={[
           styles.headerContainer,
           { borderBottomColor: theme.border, backgroundColor: theme.bg },
         ]}
       >
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
 
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Notifications</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>
+          Notifications
+        </Text>
 
-        {notifications.length > 0 ? (
+        {fullList.length > 0 ? (
           <TouchableOpacity onPress={clearNotifications} style={styles.clearBtn}>
             <Ionicons name="trash-outline" size={22} color={theme.danger} />
           </TouchableOpacity>
@@ -116,15 +179,20 @@ export default function Notifications() {
         )}
       </View>
 
-      {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.subText }]}>Loading...</Text>
+          <Text style={[styles.loadingText, { color: theme.subText }]}>
+            Loading...
+          </Text>
         </View>
-      ) : notifications.length === 0 ? (
+      ) : visibleList.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-off-outline" size={60} color={theme.subText} />
+          <Ionicons
+            name="notifications-off-outline"
+            size={60}
+            color={theme.subText}
+          />
           <Text style={[styles.emptyText, { color: theme.subText }]}>
             No notifications yet
           </Text>
@@ -132,10 +200,20 @@ export default function Notifications() {
       ) : (
         <ScrollView
           style={styles.scroll}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          showsVerticalScrollIndicator
+          contentContainerStyle={{ paddingBottom: 50 }}
+          onMomentumScrollEnd={(e) => {
+            const { layoutMeasurement, contentOffset, contentSize } =
+              e.nativeEvent;
+
+            const isBottom =
+              layoutMeasurement.height + contentOffset.y >=
+              contentSize.height - 20;
+
+            if (isBottom) loadMore();
+          }}
         >
-          {notifications.map((notif, index) => (
+          {visibleList.map((notif, index) => (
             <View
               key={notif._id || index}
               style={[
@@ -161,20 +239,40 @@ export default function Notifications() {
                       color={getStatusColor(notif.type)}
                     />
                   </View>
+
+                  {/* FIXED FINAL MESSAGE WITH REAL ORDER # */}
                   <Text style={[styles.message, { color: theme.text }]}>
-                    {notif.message}
+                    {formatNotificationText(notif)}
                   </Text>
                 </View>
 
-                <TouchableOpacity onPress={() => deleteNotification(notif._id)}>
-                  <Ionicons name="close-circle" size={22} color={theme.subText} />
+                <TouchableOpacity
+                  onPress={() => deleteNotification(notif._id)}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={22}
+                    color={theme.subText}
+                  />
                 </TouchableOpacity>
               </View>
+
               <Text style={[styles.date, { color: theme.subText }]}>
                 {new Date(notif.createdAt).toLocaleString()}
               </Text>
             </View>
           ))}
+
+          {visibleList.length < fullList.length && (
+            <View style={{ padding: 15, alignItems: "center" }}>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text
+                style={{ marginTop: 6, color: theme.subText, fontSize: 13 }}
+              >
+                Loading more...
+              </Text>
+            </View>
+          )}
         </ScrollView>
       )}
     </View>
@@ -211,7 +309,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  iconTextContainer: { flexDirection: "row", alignItems: "center", flex: 1 },
+  iconTextContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
   iconCircle: {
     width: 36,
     height: 36,
@@ -225,9 +327,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 40,
   },
   emptyText: { marginTop: 10, fontSize: 16, fontWeight: "500" },
-  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   loadingText: { marginTop: 8, fontSize: 14 },
 });

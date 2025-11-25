@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../config";
 import { PinchGestureHandler, State } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width, height } = Dimensions.get("window");
 
@@ -22,6 +23,7 @@ const Landing = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { food: routeFood } = route.params || {};
+  const insets = useSafeAreaInsets();
 
   const defaultFood = {
     _id: "690870d26516a34c956a9d72",
@@ -30,7 +32,7 @@ const Landing = () => {
     prod_category: "68faae531a11a7335c9b96cf",
     prod_unit_price: 123,
     prod_reorder_level: 12,
-    prod_qty: 5, // Default stock
+    prod_qty: 5,
     product_image: {
       uri:
         "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMU…",
@@ -45,18 +47,15 @@ const Landing = () => {
   const [cartCount, setCartCount] = useState(0);
   const [cartItems, setCartItems] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
-
-  // Pinch zoom state
   const scale = useState(new Animated.Value(1))[0];
 
-  const onPinchEvent = Animated.event(
-    [{ nativeEvent: { scale: scale } }],
-    { useNativeDriver: true }
-  );
+  const onPinchEvent = Animated.event([{ nativeEvent: { scale: scale } }], {
+    useNativeDriver: true,
+  });
 
   const onPinchStateChange = (event) => {
     if (event.nativeEvent.oldState === State.ACTIVE) {
-      // Do nothing to keep zoom persistent
+      // Keep zoom persistent
     }
   };
 
@@ -89,8 +88,7 @@ const Landing = () => {
   const foodPrice = parseFloat(food.price || food.prod_unit_price || 0);
   const totalPrice = foodPrice * quantity;
 
-  const descText =
-    (food.product_desc || food.prod_desc || "").toLowerCase().trim();
+  const descText = (food.product_desc || food.prod_desc || "").toLowerCase().trim();
   const isPartyTray = descText.includes("party tray");
 
   const addToCart = async () => {
@@ -142,9 +140,7 @@ const Landing = () => {
 
       Alert.alert(
         "Added to Cart",
-        `${foodName} added successfully (${quantity} ${
-          isPartyTray ? "pax" : "pcs"
-        })!`
+        `${foodName} added successfully (${quantity} ${isPartyTray ? "pax" : "pcs"})!`
       );
     } catch (error) {
       console.error("Error adding to cart:", error);
@@ -196,7 +192,7 @@ const Landing = () => {
             style={styles.modalCloseArea}
             onPress={() => {
               setModalVisible(false);
-              scale.setValue(1); // reset zoom
+              scale.setValue(1);
             }}
           />
           <PinchGestureHandler
@@ -222,13 +218,14 @@ const Landing = () => {
       </View>
 
       <Text style={styles.servingLabel}>
-        {isPartyTray ? "Party Tray (Per 1 pax Good for 8 to 10 Peson)" : "Single Servings"}
+        {isPartyTray
+          ? "Party Tray (Per 1 pax Good for 8 to 10 Person)"
+          : "Single Servings"}
       </Text>
       <View style={styles.separator} />
 
       {/* Quantity Selector */}
       <View style={styles.quantityContainer}>
-        {/* Available Stock */}
         <Text style={styles.availableStock}>
           Available Stock: {food.prod_qty} {isPartyTray ? "pax" : "pcs"}
         </Text>
@@ -272,17 +269,45 @@ const Landing = () => {
           <Text style={styles.orderNowText}>Order Now</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Floating Black Footer */}
+      <View
+        style={{
+          height: insets.bottom || 30,
+          backgroundColor: "#000",
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+        }}
+      />
     </View>
   );
-}; 
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 15 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 25, marginTop: 40 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 25,
+    marginTop: 40,
+  },
   backButton: { width: 40, alignItems: "flex-start" },
   headerTitle: { fontSize: 18, fontWeight: "bold", textAlign: "center", flex: 1 },
   cartIcon: { width: 40, alignItems: "flex-end" },
-  redDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: "red", position: "absolute", right: -10, top: -5, justifyContent: "center", alignItems: "center" },
+  redDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "red",
+    position: "absolute",
+    right: -10,
+    top: -5,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   cartBadge: { color: "#fff", fontSize: 10, fontWeight: "bold" },
 
   foodImage: { width: "100%", height: 220, borderRadius: 12, marginBottom: 15 },
@@ -297,7 +322,13 @@ const styles = StyleSheet.create({
   quantityContainer: { marginVertical: 10 },
   availableStock: { fontSize: 12, color: "gray", opacity: 0.5, marginBottom: 4 },
   quantityRow: { flexDirection: "row", alignItems: "center" },
-  qtyButton: { borderWidth: 1, borderColor: "#999", borderRadius: 4, paddingHorizontal: 15, paddingVertical: 5 },
+  qtyButton: {
+    borderWidth: 1,
+    borderColor: "#999",
+    borderRadius: 4,
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+  },
   qtyText: { fontSize: 18 },
   qtyNumber: { fontSize: 16, marginHorizontal: 15 },
 
@@ -306,12 +337,26 @@ const styles = StyleSheet.create({
   totalPrice: { fontSize: 18, fontWeight: "bold" },
 
   buttonRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 28 },
-  addToCart: { flex: 1, borderWidth: 1, borderColor: "#000", padding: 12, borderRadius: 8, marginRight: 8, alignItems: "center" },
+  addToCart: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#000",
+    padding: 12,
+    borderRadius: 8,
+    marginRight: 8,
+    alignItems: "center",
+  },
   addToCartText: { fontSize: 16, fontWeight: "bold", color: "black" },
-  orderNow: { flex: 1, backgroundColor: "black", padding: 12, borderRadius: 8, marginLeft: 8, alignItems: "center" },
+  orderNow: {
+    flex: 1,
+    backgroundColor: "black",
+    padding: 12,
+    borderRadius: 8,
+    marginLeft: 8,
+    alignItems: "center",
+  },
   orderNowText: { fontSize: 16, fontWeight: "bold", color: "#fff" },
 
-  // Modal zoom styles
   modalContainer: {
     flex: 1,
     backgroundColor: "black",

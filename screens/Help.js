@@ -13,6 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { ThemeContext } from "../contexts/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // FAQ content
 const faqs = [
@@ -69,13 +70,13 @@ export default function Help() {
   const navigation = useNavigation();
   const { darkMode } = useContext(ThemeContext);
   const theme = darkMode ? blackTheme : lightTheme;
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(false);
 
   const contactSupport = async () => {
     setLoading(true);
 
-    // Messenger deep link (opens Messenger app directly)
     const messengerAppURL = "fb-messenger://user-thread/102314261772411";
     const fallbackURL = "https://www.facebook.com/messages/t/102314261772411";
 
@@ -84,7 +85,6 @@ export default function Help() {
       if (supported) {
         await Linking.openURL(messengerAppURL);
       } else {
-        // fallback to browser only if Messenger not installed
         await Linking.openURL(fallbackURL);
       }
     } catch (error) {
@@ -126,7 +126,7 @@ export default function Help() {
       {/* FAQ List */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 100 }}
+        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
       >
         {faqs.map((faq, index) => (
@@ -176,6 +176,18 @@ export default function Help() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Floating Black Footer */}
+      <View
+        style={{
+          height: insets.bottom || 30,
+          backgroundColor: "#000",
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+        }}
+      />
     </View>
   );
 }

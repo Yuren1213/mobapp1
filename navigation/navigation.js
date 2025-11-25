@@ -2,7 +2,6 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { FavoritesProvider } from "../FavoritesContext";
 
-
 import Bento from "../screens/Bento";
 import Cart from "../screens/Cart";
 import Checkoutlist from "../screens/Checkoutlist";
@@ -11,6 +10,7 @@ import Drinks from "../screens/Drinks";
 import Favorites from "../screens/Favorites";
 import Foodtrays from "../screens/Foodtrays";
 import Forgotpassword from "../screens/Forgotpassword";
+import Gamescreen from "../screens/Gamescreen";
 import Help from "../screens/Help";
 import Home from "../screens/Home";
 import landing from "../screens/landing";
@@ -21,20 +21,17 @@ import Payment from "../screens/Payment";
 import ProductImageScreen from "../screens/ProductImageScreen";
 import Register from "../screens/register";
 import Settings from "../screens/Settings";
-import Gamescreen from "../screens/Gamescreen"; 
-
 
 const Stack = createNativeStackNavigator();
 
-export default function Navigation() {
+export default function Navigation({ initialRouteName }) {
   return (
     <FavoritesProvider>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Login" 
+          initialRouteName={initialRouteName}
           screenOptions={{ headerShown: false }}
         >
-      
           <Stack.Screen name="Register" component={Register} />
           <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="Home" component={Home} />
@@ -55,7 +52,6 @@ export default function Navigation() {
           <Stack.Screen name="ConnectionTestScreen" component={ConnectionTestScreen} />          
           <Stack.Screen name="Gamescreen" component={Gamescreen} />
         </Stack.Navigator>
-
       </NavigationContainer>
     </FavoritesProvider>
   );

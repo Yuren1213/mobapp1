@@ -9,7 +9,6 @@ import {
   View,
   ScrollView,
   ActivityIndicator,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -26,7 +25,6 @@ export default function Login() {
 
   const passwordRef = useRef(null);
 
-  // ✅ Function to check password strength
   const isStrongPassword = (password) => {
     const regex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
     return regex.test(password);
@@ -37,7 +35,6 @@ export default function Login() {
       setError("Please fill in both fields.");
       return;
     }
-
 
     if (!isStrongPassword(password)) {
       setError("Password must be at least 6 characters long and include letters and numbers.");
@@ -59,7 +56,6 @@ export default function Login() {
       if (response.ok && data.user) {
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
         await AsyncStorage.removeItem("guest");
-        Alert.alert("Welcome!", "Login successful 🍽️");
         navigation.replace("Home");
       } else {
         setError(data.message || "Invalid credentials");
@@ -72,8 +68,6 @@ export default function Login() {
     }
   };
 
-
-
   const continueAsGuest = async () => {
     try {
       await AsyncStorage.setItem("guest", "true");
@@ -85,16 +79,10 @@ export default function Login() {
     }
   };
 
-
-
-  // Toggle and keep focus on password input (fixes Android rendering quirk)
   const toggleShowPassword = () => {
-    setShowPassword((prev) => {
+    setShowPassword(prev => {
       const next = !prev;
-      // small delay to ensure re-render then focus
-      setTimeout(() => {
-        passwordRef.current?.focus();
-      }, 50);
+      setTimeout(() => passwordRef.current?.focus(), 50);
       return next;
     });
   };
@@ -103,12 +91,7 @@ export default function Login() {
     <View style={styles.background}>
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
-          <Image
-            source={require("../assets/images/cantinalogo.jpg")}
-            style={styles.logo}
-          />
-
-
+          <Image source={require("../assets/images/cantinalogo.jpg")} style={styles.logo} />
           <Text style={styles.title}>Welcome👋</Text>
           <Text style={styles.subtitle}>Log in to continue your cravings</Text>
 
@@ -122,12 +105,8 @@ export default function Login() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              textContentType="emailAddress"
-              returnKeyType="next"
-              underlineColorAndroid="transparent"
             />
 
-            {/* Password field with lock/unlock icon */}
             <View style={styles.passwordBox}>
               <TextInput
                 ref={passwordRef}
@@ -139,23 +118,11 @@ export default function Login() {
                 onChangeText={setPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
-                textContentType="password"
-                importantForAutofill="no"
                 returnKeyType="done"
                 onSubmitEditing={handleLogin}
-                underlineColorAndroid="transparent"
-                selectionColor="#ff3b3b"
               />
-              <TouchableOpacity
-                onPress={toggleShowPassword}
-                style={styles.eyeIcon}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons
-                  name={showPassword ? "lock-open" : "lock-closed"}
-                  size={22}
-                  color="#888"
-                />
+              <TouchableOpacity onPress={toggleShowPassword} style={styles.eyeIcon}>
+                <Ionicons name={showPassword ? "lock-open" : "lock-closed"} size={22} color="#888" />
               </TouchableOpacity>
             </View>
 
@@ -166,22 +133,16 @@ export default function Login() {
               onPress={handleLogin}
               disabled={loading}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Login</Text>
-              )}
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Login</Text>}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.forgotContainer}
-              onPress={() => navigation.navigate("Forgotpassword")}
-            >
-              <Text style={styles.forgotText}>Forgot Password?</Text>
+            <TouchableOpacity style={styles.guestBtn} onPress={continueAsGuest}>
+              <Text style={styles.guestText}>Continue as Guest 🍽️</Text>
             </TouchableOpacity>
 
+            {/* Sign Up Link */}
             <Text style={styles.signupText}>
-              Don’t have an account?{" "}
+              Don't have an account?{" "}
               <Text
                 style={styles.signupLink}
                 onPress={() => navigation.navigate("Register")}
@@ -189,10 +150,6 @@ export default function Login() {
                 Sign Up
               </Text>
             </Text>
-
-            <TouchableOpacity style={styles.guestBtn} onPress={continueAsGuest}>
-              <Text style={styles.guestText}>Continue as Guest 🍽️</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>

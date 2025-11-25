@@ -1,15 +1,18 @@
-import { useEffect, useState, useRef } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
+  Dimensions,
   FlatList,
   Image,
+  Platform,
   StyleSheet,
   Text,
-  View,
-  Dimensions,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { ENDPOINTS } from "../config";
 
 const { width } = Dimensions.get("window");
@@ -18,6 +21,7 @@ export default function Drinks() {
   const [drinks, setDrinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const shimmerValue = useRef(new Animated.Value(0)).current;
+  const navigation = useNavigation();
 
   useEffect(() => {
     const fetchDrinks = async () => {
@@ -103,7 +107,23 @@ export default function Drinks() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>🥤 Refreshing Drinks</Text>
+      {/* 🔙 Header With Back Button */}
+      <View style={styles.headerBar}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Ionicons
+            name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"}
+            size={26}
+            color="#e91e63"
+          />
+        </TouchableOpacity>
+
+        <Text style={styles.header}>🥤 Refreshing Drinks</Text>
+        <View style={{ width: 30 }} />
+      </View>
+
       <FlatList
         data={drinks}
         keyExtractor={(item) => item._id}
@@ -120,19 +140,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff8fb",
-    paddingTop: 20,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
   },
+
+  /* 🔙 Back Button Header */
+  headerBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 0.6,
+    borderBottomColor: "#f3c1d5",
+  },
+  backButton: {
+    marginRight: 10,
+  },
+
   header: {
+    flex: 1,
     fontSize: 22,
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 10,
     color: "#e91e63",
   },
+
   list: {
     paddingHorizontal: 10,
     paddingBottom: 20,
   },
+
   card: {
     width: width / 2 - 20,
     borderRadius: 15,
@@ -170,6 +206,7 @@ const styles = StyleSheet.create({
     color: "#e91e63",
     marginTop: 4,
   },
+
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
