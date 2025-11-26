@@ -4,7 +4,6 @@ import { useNavigation } from "@react-navigation/native";
 import { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   LayoutAnimation,
   Platform,
   ScrollView,
@@ -47,30 +46,20 @@ export default function Notifications() {
     loadNotifications();
   }, []);
 
-  // 🔥 FIX: always extract real order number and apply to message
+  // Fix order numbers in notification messages
   const formatNotificationText = (notif) => {
-    // Try to get order number from any field
     const orderNumber =
-      notif.orderId ||
-      notif.order_id ||
-      notif.order ||
-      notif.id ||
-      null;
+      notif.orderId || notif.order_id || notif.order || notif.id || null;
+    let message = notif.message || "";
 
-    let finalMessage = notif.message || "";
-
-    // If order number exists → force insert into message
     if (orderNumber) {
-      finalMessage = finalMessage.replace(/#undefined/gi, `#${orderNumber}`);
-      finalMessage = finalMessage.replace(/#null/gi, `#${orderNumber}`);
-
-      // If the message has no "#..." at all, add one
-      if (!finalMessage.includes(`#${orderNumber}`)) {
-        finalMessage = `Order #${orderNumber}: ${finalMessage}`;
+      message = message.replace(/#undefined/gi, `#${orderNumber}`);
+      message = message.replace(/#null/gi, `#${orderNumber}`);
+      if (!message.includes(`#${orderNumber}`)) {
+        message = `Order #${orderNumber}: ${message}`;
       }
     }
-
-    return finalMessage.trim();
+    return message.trim();
   };
 
   const loadNotifications = async () => {
@@ -79,7 +68,7 @@ export default function Notifications() {
       const stored = await AsyncStorage.getItem("notifications");
       const data = stored ? JSON.parse(stored) : [];
 
-      // FIX: rebuild each message with real order number
+      // Fix messages with correct order #
       const fixed = data.map((n) => ({
         ...n,
         message: formatNotificationText(n),
@@ -153,6 +142,7 @@ export default function Notifications() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      {/* Header */}
       <View
         style={[
           styles.headerContainer,
@@ -205,11 +195,9 @@ export default function Notifications() {
           onMomentumScrollEnd={(e) => {
             const { layoutMeasurement, contentOffset, contentSize } =
               e.nativeEvent;
-
             const isBottom =
               layoutMeasurement.height + contentOffset.y >=
               contentSize.height - 20;
-
             if (isBottom) loadMore();
           }}
         >
@@ -240,7 +228,6 @@ export default function Notifications() {
                     />
                   </View>
 
-                  {/* FIXED FINAL MESSAGE WITH REAL ORDER # */}
                   <Text style={[styles.message, { color: theme.text }]}>
                     {formatNotificationText(notif)}
                   </Text>
@@ -323,16 +310,8 @@ const styles = StyleSheet.create({
   },
   message: { flex: 1, marginLeft: 10, fontSize: 15.5, lineHeight: 20 },
   date: { fontSize: 12.5, marginTop: 6, fontWeight: "400" },
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  emptyContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: { marginTop: 10, fontSize: 16, fontWeight: "500" },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  loadingContainer: { flex: 1, alignItems: "center", justifyContent: "center" },
   loadingText: { marginTop: 8, fontSize: 14 },
 });

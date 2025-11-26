@@ -403,6 +403,7 @@ const Checkoutlist = () => {
       setMapLoading(false);
     }
   };
+const isPlaceOrderDisabled = paymentMethod === "ONLINE" && (!paymentReference || paymentReference.trim().length < 3);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -556,12 +557,30 @@ const Checkoutlist = () => {
           </View>
         </View>
 
-        {/* Place Order Button */}
-        <View style={{ margin: 16 }}>
-          <TouchableOpacity style={[styles.placeOrderBtn, { backgroundColor: theme.placeOrderBtn }]} onPress={placeOrder}>
-            <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>Place Order</Text>
-          </TouchableOpacity>
-        </View>
+       {/* Place Order Button */}
+<View style={{ margin: 16 }}>
+  {/* Hint if ONLINE payment but reference is missing */}
+  {isPlaceOrderDisabled && paymentMethod === "ONLINE" && (
+    <Text style={{ color: "red", marginBottom: 5 }}>
+      Enter your payment reference to enable Place Order
+    </Text>
+  )}
+
+  <TouchableOpacity
+    style={[
+      styles.placeOrderBtn,
+      {
+        backgroundColor: isPlaceOrderDisabled ? "#ccc" : theme.placeOrderBtn,
+        opacity: isPlaceOrderDisabled ? 0.6 : 1,
+      },
+    ]}
+    onPress={placeOrder}
+    disabled={isPlaceOrderDisabled}
+  >
+    <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>Place Order</Text>
+  </TouchableOpacity>
+</View>
+
       </ScrollView>
 
       {/* QR Modal: shows QR + TextInput below for reference number */}
@@ -574,7 +593,7 @@ const Checkoutlist = () => {
             <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 10, color: theme.text }}>Scan to Pay</Text>
 
             {/* QR Code - you can change the value to match the required scheme */}
-            <QRCode value={`gcash://pay?phone=09389916778&amount=${formatCurrency(total)}`} size={200} />
+            <QRCode value={`G-cash://pay?phone=09389916778&amount=${formatCurrency(total)}`} size={200} />
 
             <Text style={{ marginTop: 10, color: theme.text }}>Amount: ₱{formatCurrency(total)}</Text>
 
